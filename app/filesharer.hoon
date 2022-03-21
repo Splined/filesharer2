@@ -58,7 +58,14 @@
     [cards this]
   ==
 ::
-++  on-watch  |=(path !!)
+::  A ship is added to users when at least one file has that ship in its whitelist
+::  So, allow sub for any ship in users.  E.g.  ~(has by users) src.bowl
+++  on-watch  on-watch:def
+::    |=  =path
+::    ^-  (quip card _this)
+::    ?.  (~(has by users) src.bowl)
+::      ~|("not approved for subscription" !!)
+::
 ::
 ++  on-leave  on-leave:def
 ::
@@ -88,28 +95,33 @@
         %remove-user
     =.  users  (~(del by users) ship.action)
     `state
+::  *** if perms are included when adding a file to local, need to also add file id
+::  *** to files.user for appropriate ships
         %add-file-to-local
-    =/  id=@  `@`title.file.action  :: placeholder for random number gen
+    =/  id=@  (mug `@`title.file.action)  :: placeholder for random number gen
     =.  local  (~(put by local) id [file.action perms.action])
 ::    =/  =cage  [%filesharer-server-update !>([%add-file file.action])]
 ::    :_  state
 ::      ~[[%give %fact ~[/updates] cage]]
     `state  :: replace with appropriate card(s)
+    ::  if file is removed from local, it should also be removed from all user id lists
         %remove-file-from-local
-    =.  local  (~(del by local) id.action)
+    =:  local  (~(del by local) id.action)
+        users  (~(rut by users) |=([k=ship v=user] `user`[rev.v (~(del in files.v) id.action)]))
+    ==
     `state
     ::  add ship if missing from users, then add ship to all wl in set, then add ids to user
         %add-ship-to-wl
     |^
-    ?.  (~(has by users) ship.action)
-      =:  users  (~(put by users) ship.action [*rev *(set id)])
-          local  (~(rut by local) add-to-wl)
+    ?:  (~(has by users) ship.action)
+      =:  local  (~(rut by local) add-to-wl)
           users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
-        ==
-      `state
-    =:  local  (~(rut by local) add-to-wl)
-        users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
       ==
+      `state
+    =:  users  (~(put by users) ship.action [*rev *(set id)])
+        local  (~(rut by local) add-to-wl)
+        users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
+    ==
     `state
     ::  used with rut:by on 'local' in state to add ship to wl of each file
     ::  in set. e.g. (~(rut by local) add-to-wl)
@@ -177,6 +189,44 @@
       `state
     =.  public  (~(put in public) id.action)
     `state
+        %set-secret
+    =.  secret  [k.action iv.action]
+    `state
+        %encode-test
+    ~&  >  (encode [ship.action id.action])
+    `state
+        %decode-test
+    ~&  >  (decode url.action)
+    `state
   ==
+::
+++  encode
+  |=  [=ship =id]
+  ^-  (unit @t)
+  ?~  host  ~
+  =/  =user  (~(got by users) ship)
+  =/  =file  =<  file  (~(got by local) id)
+  =/  raw=@  (can 3 ~[8^id 8^rev.user 16^ship])
+  =/  hash=tape
+    %-  (v-co:co 32)
+    (~(en cbca:aes:crypto k.secret iv.secret) raw)
+  =/  query=tape
+    ?~  ext.file  ""
+    "?ext={(trip u.ext.file)}"
+  `(crip "http://{(trip u.host)}/share/{hash}{query}")
+::
+++  decode
+  |=  url=@t
+  ^-  (unit decoded)
+  =/  purl=(unit purl:eyre)  (de-purl:html url)
+  ?~  purl  ~
+  =/  =pork:eyre  q.u.purl
+  ?.  ?=([@ @ ~] q.pork)  ~
+  =/  hash=@  (rash i.t.q.pork vum:ag)
+  =/  raw=@  (~(de cbca:aes:crypto k.secret iv.secret) hash)
+  :^    ~
+      (cut 3 [16 16] raw)
+    (cut 3 [8 8] raw)
+  (end 6 raw)
 ::
 --

@@ -38,6 +38,9 @@
       [%add-ship-to-bl ids=(set id) =ship]
       [%rm-ship-from-bl ids=(set id) =ship]
       [%toggle-pub id=@]
+      [%set-secret k=@ iv=@]
+      [%encode-test =ship =id]
+      [%decode-test url=@t]
 ::      [%change-perms        ::  [add|remove] perms for file
 ::  subscriptions: add tag=@tas later or will client be subscribed to all files and tags can be filtered by front end?
 ::      [%subscribe host=@p]   
