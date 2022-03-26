@@ -58,20 +58,76 @@
     [cards this]
   ==
 ::
-::  A ship is added to users when at least one file has that ship in its whitelist
-::  So, allow sub for any ship in users.  E.g.  ~(has by users) src.bowl
-++  on-watch  on-watch:def
-::    |=  =path
-::    ^-  (quip card _this)
-::    ?.  (~(has by users) src.bowl)
-::      ~|("not approved for subscription" !!)
-::
+++  on-watch  ::  on-watch:def
+    |=  =path
+    ^-  (quip card _this)
+    ?+    path  (on-watch:def path)
+        [%updates @ ~]
+      ~&  >>>  path
+::      =/  who=@p  src.bowl
+      =/  who=@p  (slav %p i.t.path) 
+      =/  ids=(set @)
+      ::  handle case of user subscribing without being in any wl
+        =>  (~(get by users) who)
+          ?~  .  ~
+        files.u  
+      ~&  >  ids
+      =/  local-subset=(map id [file perms])  (local-map-subset ids)
+      =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
+      =/  data=(map id file)
+        %-  ~(rut by idata)
+        |=  [k=@ v=file] 
+        ^-  file
+        :^    title.v
+            note.v
+          =>  (encode who k)  ?~  .  `@t`~  u
+        ext.v
+      =/  =cage  [%filesharer-update !>([%add-remote data])]
+      ~&  >  cage
+      :_  this
+        ~[[%give %fact ~ cage]]
+    ==
 ::
 ++  on-leave  on-leave:def
 ::
 ++  on-peek  |=(path ~)
 ::
-++  on-agent  |=([wire sign:agent:gall] !!)
+++  on-agent  ::  |=([wire sign:agent:gall] !!)
+  |=  [=wire =sign:agent:gall]
+  ^-  (quip card _this)
+  ?+  wire  (on-agent:def wire sign)
+    [%updates @ ~]  ::  can I use @p / %p for second element?
+    ?+  -.sign  (on-agent:def wire sign)
+        %watch-ack
+      ?~  p.sign
+        ((slog '%filesharer: Subscribe succeeded!' ~) `this)
+      ((slog '%filesharer: Subscribe failed!' ~) `this)
+    ::
+        %kick
+      %-  (slog '%filesharer: Got kick, resubscribing...' ~)
+      `this
+     :: this created an infinite loop!   :_  this
+     :: :~  [%pass /updates/wire %agent [src.bowl %filesharer] %watch /updates]
+     :: ==
+    ::
+        %fact
+      ?+  p.cage.sign  (on-agent:def wire sign)
+          %filesharer-update
+         =/  resp  !<(update q.cage.sign)
+         ?-  -.resp
+             %add-remote
+           =/  data=(map id file)  +.resp
+           [~ this(remote (~(put by remote) src.bowl data))]
+::             %remove-remote
+::           ~&  >>  src.bowl
+::           [~ this(remote (~(del by remote) src.bowl))]
+         ==
+::        %kick
+::      :_  this
+::      :~  [%pass /some/wire %agent [src.bowl dap.bowl] %watch /some/path]
+      ==
+    ==
+  ==
 ::
 ++  on-arvo  on-arvo:def
 ++  on-fail   on-fail:def
@@ -95,15 +151,38 @@
         %remove-user
     =.  users  (~(del by users) ship.action)
     `state
-::  *** if perms are included when adding a file to local, need to also add file id
-::  *** to files.user for appropriate ships
         %add-file-to-local
+    |^
     =/  id=@  (mug `@`title.file.action)  :: placeholder for random number gen
-    =.  local  (~(put by local) id [file.action perms.action])
+    =:  local  (~(put by local) id [file.action perms.action])
+        users  (~(rut by (update-users white.perms.action)) add-to-users)
+    ==
 ::    =/  =cage  [%filesharer-server-update !>([%add-file file.action])]
 ::    :_  state
 ::      ~[[%give %fact ~[/updates] cage]]
     `state  :: replace with appropriate card(s)
+    ::
+    ::  add missing users to state before updating their file lists
+    ++  update-users
+      |=  ships=(set ship)
+      ^-  (map ship user)
+      =/  ship-list=(list ship)  ~(tap in ships)
+      =/  missing=(list ship)
+        %+  skip
+          ship-list
+        |=(a=@p (~(has by users) a))
+      =/  new-users=(list [ship user])
+        (turn missing |=(a=@p [a *user]))
+      (~(gas by users) new-users)
+    ::  add the whitelisted file ids into each user
+    ++  add-to-users
+      |=  [k=ship v=user]
+      ^-  user
+      ?.  (~(has in white.perms.action) k)
+        v
+      :-  rev.v
+      (~(put in files.v) (mug `@`title.file.action))  ::  <-- is there a way to access id above?
+    --
     ::  if file is removed from local, it should also be removed from all user id lists
         %remove-file-from-local
     =:  local  (~(del by local) id.action)
@@ -128,10 +207,10 @@
     ++  add-to-wl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
-      ?:  (~(has in ids.action) k)
-        :: this returns the value, v, with 'ship' inserted in the 'white' set of the value
-        [file.v `perms`[(~(put in white.perms.v) ship.action) black.perms.v]]
-      v
+      ?.  (~(has in ids.action) k)
+        v
+      :: this returns the value, v, with 'ship' inserted in the 'white' set of the value
+      [file.v `perms`[(~(put in white.perms.v) ship.action) black.perms.v]]
 ::  =. is not the right way to implement this. what should be done instead?
 ::  just need to return the user with union of existing ids and ids from action
 ::    ++  add-ids-to-user
@@ -148,10 +227,10 @@
     ++  rm-from-wl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
-      ?:  (~(has in ids.action) k)
-        :: this returns the value, v, with 'ship' removed from the 'white' set of the value
-        [file.v `perms`[(~(del in white.perms.v) ship.action) black.perms.v]]
-      v
+      ?.  (~(has in ids.action) k)
+        v
+      :: this returns the value, v, with 'ship' removed from the 'white' set of the value
+      [file.v `perms`[(~(del in white.perms.v) ship.action) black.perms.v]]
     --
         %add-ship-to-bl
     |^
@@ -162,10 +241,10 @@
     ++  add-to-bl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
-      ?:  (~(has in ids.action) k)
-        :: this returns the value, v, with 'ship' inserted in the 'black' set of the value
-        [file.v `perms`[white.perms.v (~(put in black.perms.v) ship.action)]]
-      v
+      ?.  (~(has in ids.action) k)
+        v
+      :: this returns the value, v, with 'ship' inserted in the 'black' set of the value
+      [file.v `perms`[white.perms.v (~(put in black.perms.v) ship.action)]]
     --
         %rm-ship-from-bl
     |^
@@ -176,10 +255,10 @@
     ++  rm-from-bl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
-      ?:  (~(has in ids.action) k)
-        :: this returns the value, v, with 'ship' removed from the 'black' set of the value
-        [file.v `perms`[white.perms.v (~(del in black.perms.v) ship.action)]]
-      v
+      ?.  (~(has in ids.action) k)
+        v
+      :: this returns the value, v, with 'ship' removed from the 'black' set of the value
+      [file.v `perms`[white.perms.v (~(del in black.perms.v) ship.action)]]
     --
         %toggle-pub
     ?.  (~(has by local) id.action)
@@ -198,6 +277,24 @@
         %decode-test
     ~&  >  (decode url.action)
     `state
+        %subscribe
+::    ~&  >  `path`[host.action ~]
+    :_  state
+    :~  :*
+      %pass   /updates/(scot %p host.action)
+      %agent  [host.action %filesharer]
+      %watch  /updates/(scot %p our.bowl)
+::      %watch  /updates   :: simpler path for testing
+    ==  ==
+        %leave
+::    :_  state
+    :_  state(remote (~(del by remote) host.action))  ::  is there a way to implement after %leave is confirmed?
+    :~  :*
+      %pass  /updates/(scot %p host.action)
+      %agent  [host.action %filesharer]
+      %leave  ~
+    ==  ==
+    ::
   ==
 ::
 ++  encode
@@ -229,4 +326,17 @@
     (cut 3 [8 8] raw)
   (end 6 raw)
 ::
+++  local-map-subset
+  |=  ids=(set id)
+  =/  id-list=(list id)  ~(tap in ids)
+  =|  sub-local=(map id [file perms])
+  |-  ^-  (map id [file perms])
+  ?~  id-list
+    sub-local
+  ?.  (~(has by local) i.id-list)
+    $(id-list t.id-list)
+  %=  $
+    id-list  t.id-list
+    sub-local  (~(put by sub-local) i.id-list (~(got by local) i.id-list))
+  ==
 --

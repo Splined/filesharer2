@@ -41,16 +41,16 @@
       [%set-secret k=@ iv=@]
       [%encode-test =ship =id]
       [%decode-test url=@t]
+      [%subscribe host=@p]   
+      [%leave host=@p]
 ::      [%change-perms        ::  [add|remove] perms for file
-::  subscriptions: add tag=@tas later or will client be subscribed to all files and tags can be filtered by front end?
-::      [%subscribe host=@p]   
-::      [%leave host=@p]
   ==
 ::  changes to remote (i.e. data from other ships)
-::+$  server-update
-::  $%  [%add-file =id =file]    :: ship info from src.bowl
-::      [%remove-file =id]       :: ship info from src.bowl
++$  update
+  $%  [%add-remote umap=(map id file)]
+::      [%remove-remote =ship]       :: ship info from src.bowl
+  ::  [%add-remote =id =file]    :: ship info from src.bowl
 :: can be handled by %add-file?      [%add-remote =ship]
 :: can be handled by %remove-file?      [%remove-remote =ship]
-::  ==
+  ==
 --
