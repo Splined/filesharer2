@@ -7,7 +7,10 @@
 ::
 +$  state-0  [%0 =secret =host =users =public =local =remote]
 ::
-+$  card  card:agent:gall
+::  +$  card  card:agent:gall
++$  card  (wind note gift)
++$  gift  gift:agent:gall
++$  note  note:agent:gall
 --
 ::
 =|  state-0
@@ -64,7 +67,6 @@
     ?+    path  (on-watch:def path)
         [%updates @ ~]
       ~&  >>>  path
-::      =/  who=@p  src.bowl
       =/  who=@p  (slav %p i.t.path) 
       =/  ids=(set @)
       ::  handle case of user subscribing without being in any wl
@@ -74,6 +76,8 @@
       ~&  >  ids
       =/  local-subset=(map id [file perms])  (local-map-subset ids)
       =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
+      ::  encode urls
+      ::
       =/  data=(map id file)
         %-  ~(rut by idata)
         |=  [k=@ v=file] 
@@ -114,17 +118,45 @@
       ?+  p.cage.sign  (on-agent:def wire sign)
           %filesharer-update
          =/  resp  !<(update q.cage.sign)
+           ~&  >  resp                                      :: remove after testing
          ?-  -.resp
              %add-remote
            =/  data=(map id file)  +.resp
-           [~ this(remote (~(put by remote) src.bowl data))]
-::             %remove-remote
-::           ~&  >>  src.bowl
-::           [~ this(remote (~(del by remote) src.bowl))]
+           =/  new-remote=(map ship (map id file))
+             ?.  (~(has by remote) src.bowl)
+               (~(put by remote) src.bowl data)
+             (~(put by remote) src.bowl (~(uni by data) (~(got by remote) src.bowl)))
+           [~ this(remote new-remote)]
+             %remove-remote
+           |^
+           =/  data=(set id)  +.resp
+           ~&  >  src.bowl                                  :: remove after testing
+           ~&  >>  data                                     :: remove after testing
+           [~ this(remote (del-ids-in-set data))]
+           ::
+           ++  del-ids-in-set
+             |=  s=(set id)
+             ^+  remote
+             =/  slist=(list id)  ~(tap in s)
+             =/  new-remote=(map ship (map id file))  remote
+             |-
+             ?~  slist
+               ~&  >>>  new-remote
+               new-remote
+             %=  $
+               slist  t.slist
+               new-remote  (del-id-by-remote new-remote src.bowl i.slist)
+             ==
+           ++  del-id-by-remote
+             |=  [n=^remote k=ship v=id]
+             ^+  remote
+             =+  id-map=(~(got by n) k)
+             =+  new-map=(~(del by id-map) v)
+             ?~  new-map
+               (~(del by n) k)
+             (~(put by n) k new-map)
+           --
          ==
-::        %kick
-::      :_  this
-::      :~  [%pass /some/wire %agent [src.bowl dap.bowl] %watch /some/path]
       ==
     ==
   ==
@@ -144,25 +176,80 @@
     =/  new-host=(unit @t)  (some url.action)
     =.  host  new-host
     `state
+        ::    
         %add-user
     =|  rev=@                               :: start @ 0 and increment?
-    =.  users  (~(put by users) ship.action [rev files.action])
+    =.  users  (~(put by users) ship.action *user)  :: how would *file.user be added?
     `state
+        :: 
         %remove-user
-    =.  users  (~(del by users) ship.action)
-    `state
-        %add-file-to-local
     |^
-    =/  id=@  (mug `@`title.file.action)  :: placeholder for random number gen
-    =:  local  (~(put by local) id [file.action perms.action])
+      =/  ids=(set id)
+        =>  (~(get by users) ship.action)
+          ?~  .  ~
+        files.u
+    =:  local  (~(rut by local) remove-from-wl)
+        users  (~(del by users) ship.action)
+    ==
+    =/  =cage  [%filesharer-update !>([%remove-remote ids])]
+    ::  if user is subscribed, they won't be unsubscribed since there are public files
+    ::  but send %fact to remove whitelist files from their remote
+    :_  state
+      ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
+    ::
+    ++  remove-from-wl
+      |=  [k=id v=[=file =perms]]
+      ^-  [file perms]
+      =/  ids=(set id)                     ::  access this definition from parent?
+        =>  (~(get by users) ship.action)
+          ?~  .  ~
+        files.u
+      ?.  (~(has in ids) k)
+        v
+      :: this returns the value, v, with 'ship' removed from the 'white' set of the value
+      [file.v `perms`[(~(del in white.perms.v) ship.action) black.perms.v]]
+    --
+        ::
+        %add-file-to-local
+    =/  file-id=id  (mug `@`title.file.action)  :: placeholder for random number gen
+    =/  idata=(map id file)  (malt ~[[file-id file.action]])
+    |^
+    =:  local  (~(put by local) file-id [file.action perms.action])
         users  (~(rut by (update-users white.perms.action)) add-to-users)
     ==
-::    =/  =cage  [%filesharer-server-update !>([%add-file file.action])]
-::    :_  state
-::      ~[[%give %fact ~[/updates] cage]]
-    `state  :: replace with appropriate card(s)
     ::
+      :_  state
+      (generate-facts idata white.perms.action)
+    ::  data will be different for every ship
+    ::  need to encode, create cage, and create path for each ship.
+    ::
+    ++  generate-facts
+      |=  [idata=(map id file) ships=(set @p)]
+      =|  flist=(list card)
+      =/  slist=(list ship)  ~(tap in ships)
+      |-  ^-  (list card)
+      ?~  slist
+        flist
+      %=  $
+        slist  t.slist
+        flist
+          %+  snoc
+            flist
+          :^    %give
+              %fact
+            ~[/updates/(scot %p i.slist)]
+          ^-  cage  :-  %filesharer-update
+          !>  :-  %add-remote
+          %-  ~(rut by idata)
+          |=  [k=@ v=file] 
+          ^-  file
+          :^    title.v
+              note.v
+            =>  (encode i.slist k)  ?~  .  `@t`~  u
+          ext.v
+      ==
     ::  add missing users to state before updating their file lists
+    ::
     ++  update-users
       |=  ships=(set ship)
       ^-  (map ship user)
@@ -181,29 +268,87 @@
       ?.  (~(has in white.perms.action) k)
         v
       :-  rev.v
-      (~(put in files.v) (mug `@`title.file.action))  ::  <-- is there a way to access id above?
+      (~(put in files.v) (mug `@`title.file.action))  ::  <-- is there a way to access file-id above?
     --
-    ::  if file is removed from local, it should also be removed from all user id lists
+        ::  if file is removed from local, it should also be removed from all user id lists
+        :: 
         %remove-file-from-local
+    =/  ids=(set id)  (silt ~[id.action])
+    =/  ships=(set ship)  =<  white.perms  (~(got by local) id.action)
+    |^
     =:  local  (~(del by local) id.action)
         users  (~(rut by users) |=([k=ship v=user] `user`[rev.v (~(del in files.v) id.action)]))
     ==
-    `state
-    ::  add ship if missing from users, then add ship to all wl in set, then add ids to user
+    =/  =cage  [%filesharer-update !>([%remove-remote ids])]
+    :_  state
+      ~[[%give %fact (generate-paths ships) cage]] 
+    ::  data will be different for every ship, need to create path for each.
+    ::
+    ++  generate-paths
+      |=  ships=(set @p)
+      =|  plist=(list path)
+      =/  slist=(list ship)  ~(tap in ships)
+      |-  ^-  (list path)
+      ?~  slist
+        plist
+      %=  $
+        slist  t.slist
+        plist  %+  snoc
+                  plist
+               /updates/(scot %p i.slist)
+      ==
+      --
+        ::  add ship if missing from users, then add ship to all wl in set,
+        ::  then add ids to user
+        :: 
         %add-ship-to-wl
     |^
     ?:  (~(has by users) ship.action)
       =:  local  (~(rut by local) add-to-wl)
           users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
       ==
-      `state
+      =/  idata=(map id file)
+      %-  %~  rut
+            by
+          %-  local-map-subset
+          ids.action
+      |=  [k=@ v=[=file =perms]]  file.v
+      =/  data=(map id file)
+        %-  ~(rut by idata)
+        |=  [k=@ v=file] 
+        ^-  file
+        :^    title.v
+            note.v
+          =>  (encode ship.action k)  ?~  .  `@t`~  u
+        ext.v
+      =/  =cage  [%filesharer-update !>([%add-remote data])]
+      :_  state
+        ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     =:  users  (~(put by users) ship.action [*rev *(set id)])
         local  (~(rut by local) add-to-wl)
         users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
     ==
-    `state
+    ::
+    =/  idata=(map id file)
+    %-  %~  rut
+          by
+        %-  local-map-subset
+        ids.action
+    |=  [k=@ v=[=file =perms]]  file.v
+    =/  data=(map id file)
+       %-  ~(rut by idata)
+       |=  [k=@ v=file] 
+       ^-  file
+       :^    title.v
+           note.v
+         =>  (encode ship.action k)  ?~  .  `@t`~  u
+       ext.v
+    =/  =cage  [%filesharer-update !>([%add-remote data])]
+    :_  state
+      ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     ::  used with rut:by on 'local' in state to add ship to wl of each file
     ::  in set. e.g. (~(rut by local) add-to-wl)
+    ::
     ++  add-to-wl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
@@ -211,17 +356,16 @@
         v
       :: this returns the value, v, with 'ship' inserted in the 'white' set of the value
       [file.v `perms`[(~(put in white.perms.v) ship.action) black.perms.v]]
-::  =. is not the right way to implement this. what should be done instead?
-::  just need to return the user with union of existing ids and ids from action
-::    ++  add-ids-to-user
-::      |=  =user
-::      ^-  user
-::      =.  user  [rev.user `(set id)`(~(uni in files.user) ids.action)]
     --
+        :: 
         %rm-ship-from-wl
     |^
-    =.  local  (~(rut by local) rm-from-wl)
-    `state
+    =:  local  (~(rut by local) rm-from-wl)
+        users  (~(jab by users) ship.action |=(x=user [rev.x (~(dif in files.x) ids.action)]))
+    ==
+    =/  =cage  [%filesharer-update !>([%remove-remote ids.action])]
+    :_  state
+      ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     ::  used with rut:by on 'local' in state to remove ship from wl of each file
     ::  in set. e.g. (~(rut by local) rm-from-wl)
     ++  rm-from-wl
@@ -232,6 +376,7 @@
       :: this returns the value, v, with 'ship' removed from the 'white' set of the value
       [file.v `perms`[(~(del in white.perms.v) ship.action) black.perms.v]]
     --
+        :: 
         %add-ship-to-bl
     |^
     =.  local  (~(rut by local) add-to-bl)
@@ -246,6 +391,7 @@
       :: this returns the value, v, with 'ship' inserted in the 'black' set of the value
       [file.v `perms`[white.perms.v (~(put in black.perms.v) ship.action)]]
     --
+        :: 
         %rm-ship-from-bl
     |^
     =.  local  (~(rut by local) rm-from-bl)
@@ -260,6 +406,7 @@
       :: this returns the value, v, with 'ship' removed from the 'black' set of the value
       [file.v `perms`[white.perms.v (~(del in black.perms.v) ship.action)]]
     --
+        :: 
         %toggle-pub
     ?.  (~(has by local) id.action)
       `state
@@ -268,15 +415,19 @@
       `state
     =.  public  (~(put in public) id.action)
     `state
+        :: 
         %set-secret
     =.  secret  [k.action iv.action]
     `state
+        :: 
         %encode-test
     ~&  >  (encode [ship.action id.action])
     `state
+        :: 
         %decode-test
     ~&  >  (decode url.action)
     `state
+        :: 
         %subscribe
 ::    ~&  >  `path`[host.action ~]
     :_  state
@@ -286,6 +437,7 @@
       %watch  /updates/(scot %p our.bowl)
 ::      %watch  /updates   :: simpler path for testing
     ==  ==
+        :: 
         %leave
 ::    :_  state
     :_  state(remote (~(del by remote) host.action))  ::  is there a way to implement after %leave is confirmed?

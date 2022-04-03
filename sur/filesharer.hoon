@@ -29,7 +29,7 @@
 ::  changes to local data
 +$  action
   $%  [%change-host url=@t]
-      [%add-user files=(set id) =ship]
+      [%add-user =ship]
       [%remove-user =ship]
       [%add-file-to-local =file =perms]
       [%remove-file-from-local id=@]
@@ -47,10 +47,8 @@
   ==
 ::  changes to remote (i.e. data from other ships)
 +$  update
-  $%  [%add-remote umap=(map id file)]
-::      [%remove-remote =ship]       :: ship info from src.bowl
-  ::  [%add-remote =id =file]    :: ship info from src.bowl
-:: can be handled by %add-file?      [%add-remote =ship]
-:: can be handled by %remove-file?      [%remove-remote =ship]
+  $%  [%add-remote (map id file)]
+      [%remove-remote (set id)]
+:: ?     [%edit-remote (set id)]
   ==
 --
