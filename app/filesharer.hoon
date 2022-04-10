@@ -49,10 +49,17 @@
   ^-  (quip card _this)
   ?+    mark  (on-poke:def mark vase)
       %noun
-::    ?>  =(our src):bowl
-::    ?+    q.vase  (on-poke:def mark vase)
-!!
-::    ==
+    ?>  =(our src):bowl
+    ?+    q.vase  (on-poke:def mark vase)
+        %print-subs
+      =/  subs=(list ship)
+      %+  roll
+        ~(val by sup.bowl)
+      |=  [v=(pair ship path) ship=(list ship)]
+      (snoc ship p.v)
+      ~&  >>  subs  `this
+::  !!
+    ==
       ::
       %filesharer-action
     ~&  >>>  !<(action vase)
@@ -70,6 +77,7 @@
       =/  who=@p  (slav %p i.t.path) 
       =/  ids=(set @)
       ::  handle case of user subscribing without being in any wl
+        %-  ~(uni in public)
         =>  (~(get by users) who)
           ?~  .  ~
         files.u  
@@ -128,34 +136,19 @@
              (~(put by remote) src.bowl (~(uni by data) (~(got by remote) src.bowl)))
            [~ this(remote new-remote)]
              %remove-remote
-           |^
            =/  data=(set id)  +.resp
            ~&  >  src.bowl                                  :: remove after testing
            ~&  >>  data                                     :: remove after testing
-           [~ this(remote (del-ids-in-set data))]
+           ::  much improved code for removing 
+           ::  files from ~tinnus-napbus
            ::
-           ++  del-ids-in-set
-             |=  s=(set id)
-             ^+  remote
-             =/  slist=(list id)  ~(tap in s)
-             =/  new-remote=(map ship (map id file))  remote
-             |-
-             ?~  slist
-               ~&  >>>  new-remote
-               new-remote
-             %=  $
-               slist  t.slist
-               new-remote  (del-id-by-remote new-remote src.bowl i.slist)
-             ==
-           ++  del-id-by-remote
-             |=  [n=^remote k=ship v=id]
-             ^+  remote
-             =+  id-map=(~(got by n) k)
-             =+  new-map=(~(del by id-map) v)
-             ?~  new-map
-               (~(del by n) k)
-             (~(put by n) k new-map)
-           --
+           =.  remote
+             %+  ~(put by remote)
+               src.bowl
+             %-  ~(rep in data)
+             |:  [id=*id files=(~(got by remote) src.bowl)]
+             (~(del by files) id)
+           `this
          ==
       ==
     ==
@@ -220,34 +213,6 @@
     ::
       :_  state
       (generate-facts idata white.perms.action)
-    ::  data will be different for every ship
-    ::  need to encode, create cage, and create path for each ship.
-    ::
-    ++  generate-facts
-      |=  [idata=(map id file) ships=(set @p)]
-      =|  flist=(list card)
-      =/  slist=(list ship)  ~(tap in ships)
-      |-  ^-  (list card)
-      ?~  slist
-        flist
-      %=  $
-        slist  t.slist
-        flist
-          %+  snoc
-            flist
-          :^    %give
-              %fact
-            ~[/updates/(scot %p i.slist)]
-          ^-  cage  :-  %filesharer-update
-          !>  :-  %add-remote
-          %-  ~(rut by idata)
-          |=  [k=@ v=file] 
-          ^-  file
-          :^    title.v
-              note.v
-            =>  (encode i.slist k)  ?~  .  `@t`~  u
-          ext.v
-      ==
     ::  add missing users to state before updating their file lists
     ::
     ++  update-users
@@ -275,38 +240,16 @@
         %remove-file-from-local
     =/  ids=(set id)  (silt ~[id.action])
     =/  ships=(set ship)  =<  white.perms  (~(got by local) id.action)
-    |^
     =:  local  (~(del by local) id.action)
         users  (~(rut by users) |=([k=ship v=user] `user`[rev.v (~(del in files.v) id.action)]))
     ==
     =/  =cage  [%filesharer-update !>([%remove-remote ids])]
     :_  state
       ~[[%give %fact (generate-paths ships) cage]] 
-    ::  data will be different for every ship, need to create path for each.
-    ::
-    ++  generate-paths
-      |=  ships=(set @p)
-      =|  plist=(list path)
-      =/  slist=(list ship)  ~(tap in ships)
-      |-  ^-  (list path)
-      ?~  slist
-        plist
-      %=  $
-        slist  t.slist
-        plist  %+  snoc
-                  plist
-               /updates/(scot %p i.slist)
-      ==
-      --
         ::  add ship if missing from users, then add ship to all wl in set,
         ::  then add ids to user
         :: 
         %add-ship-to-wl
-    |^
-    ?:  (~(has by users) ship.action)
-      =:  local  (~(rut by local) add-to-wl)
-          users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
-      ==
       =/  idata=(map id file)
       %-  %~  rut
             by
@@ -322,6 +265,11 @@
           =>  (encode ship.action k)  ?~  .  `@t`~  u
         ext.v
       =/  =cage  [%filesharer-update !>([%add-remote data])]
+    |^
+    ?:  (~(has by users) ship.action)
+      =:  local  (~(rut by local) add-to-wl)
+          users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
+      ==
       :_  state
         ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     =:  users  (~(put by users) ship.action [*rev *(set id)])
@@ -329,21 +277,6 @@
         users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
     ==
     ::
-    =/  idata=(map id file)
-    %-  %~  rut
-          by
-        %-  local-map-subset
-        ids.action
-    |=  [k=@ v=[=file =perms]]  file.v
-    =/  data=(map id file)
-       %-  ~(rut by idata)
-       |=  [k=@ v=file] 
-       ^-  file
-       :^    title.v
-           note.v
-         =>  (encode ship.action k)  ?~  .  `@t`~  u
-       ext.v
-    =/  =cage  [%filesharer-update !>([%add-remote data])]
     :_  state
       ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     ::  used with rut:by on 'local' in state to add ship to wl of each file
@@ -408,13 +341,38 @@
     --
         :: 
         %toggle-pub
+    =/  slist=(list ship)
+    %+  roll
+      ~(val by sup.bowl)
+    |=  [v=(pair ship path) ship=(list ship)]
+    (snoc ship p.v)
     ?.  (~(has by local) id.action)
       `state
+    ::  Toggle off.  Delete from only those ships not in file's whitelist
+    ::
     ?:  (~(has in public) id.action)
       =.  public  (~(del in public) id.action)
-      `state
+      =/  ids=(set id)  (silt ~[id.action])
+      =/  wships=(set ship)  =<  white.perms  (~(got by local) id.action)
+      :: need an accumulator for ships in sup.bowl? and not in white.perms
+      =/  rships=(set ship)
+      %-  ~(rep in wships)
+      |:  [ship=*ship subs=(silt slist)]
+      (~(del in subs) ship)
+      =/  =cage  [%filesharer-update !>([%remove-remote ids])]
+      :_  state
+      ~[[%give %fact (generate-paths rships) cage]] 
+    ::  Toggle on. Send file data to all ships
+    ::
     =.  public  (~(put in public) id.action)
-    `state
+    =/  idata=(map id file)
+    %-  malt
+    :~  :-  id.action
+        =<  file  (~(got by local) id.action)
+    ==
+    :_  state
+    (generate-facts idata (silt slist))
+::    `state
         :: 
         %set-secret
     =.  secret  [k.action iv.action]
@@ -490,5 +448,49 @@
   %=  $
     id-list  t.id-list
     sub-local  (~(put by sub-local) i.id-list (~(got by local) i.id-list))
+  ==
+::  when removing files data will be different for every ship,
+::  need to create a seperate path for each.
+::
+++  generate-paths
+  |=  ships=(set @p)
+  =|  plist=(list path)
+  =/  slist=(list ship)  ~(tap in ships)
+  |-  ^-  (list path)
+  ?~  slist
+    plist
+  %=  $
+    slist  t.slist
+    plist  %+  snoc
+              plist
+           /updates/(scot %p i.slist)
+  ==
+::  when adding files data will be different for every ship
+::  need to encode, create cage, and create path for each ship.
+::
+++  generate-facts
+  |=  [idata=(map id file) ships=(set @p)]
+  =|  flist=(list card)
+  =/  slist=(list ship)  ~(tap in ships)
+  |-  ^-  (list card)
+  ?~  slist
+    flist
+  %=  $
+    slist  t.slist
+    flist
+      %+  snoc
+        flist
+      :^    %give
+          %fact
+        ~[/updates/(scot %p i.slist)]
+      ^-  cage  :-  %filesharer-update
+      !>  :-  %add-remote
+      %-  ~(rut by idata)
+      |=  [k=@ v=file] 
+      ^-  file
+      :^    title.v
+          note.v
+        =>  (encode i.slist k)  ?~  .  `@t`~  u
+      ext.v
   ==
 --
