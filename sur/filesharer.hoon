@@ -47,7 +47,8 @@
   ==
 ::  changes to remote (i.e. data from other ships)
 +$  update
-  $%  [%add-remote (map id file)]
+  $%  [%init (map id file)]
+      [%add-remote (map id file)]
       [%remove-remote (set id)]
 :: ?     [%edit-remote (set id)]
   ==

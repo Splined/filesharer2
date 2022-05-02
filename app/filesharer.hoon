@@ -58,6 +58,10 @@
       |=  [v=(pair ship path) ship=(list ship)]
       (snoc ship p.v)
       ~&  >>  subs  `this
+        %bind
+      %-  (slog leaf+"Attempting to bind /foo." ~)
+      :_  this
+      [%pass /bind-foo %arvo %e %connect `/'foo' %filesharer]~
 ::  !!
     ==
       ::
@@ -65,6 +69,13 @@
     ~&  >>>  !<(action vase)
     =^  cards  state
     (handle-action:hc !<(action vase))
+    [cards this]
+::  adapted from gora/sail app
+::
+      %handle-http-request
+    =^  cards  state
+    %-  https:hc
+    !<([eyre-id=@ta =inbound-request:eyre] vase)
     [cards this]
   ==
 ::
@@ -94,15 +105,51 @@
             note.v
           =>  (encode who k)  ?~  .  `@t`~  u
         ext.v
-      =/  =cage  [%filesharer-update !>([%add-remote data])]
+      =/  =cage  [%filesharer-update !>([%init data])]
       ~&  >  cage
       :_  this
         ~[[%give %fact ~ cage]]
+        [%http-response *]
+      %-  (slog leaf+"Eyre subscribed to {(spud path)}." ~)
+      `this
     ==
 ::
 ++  on-leave  on-leave:def
 ::
-++  on-peek  |=(path ~)
+++  on-peek  ::  |=(path ~)
+  |=  =path
+  ^-  (unit (unit cage))
+  ?+  path  (on-peek:def path)
+    ::  list of all local files, permissions and public status
+    ::  .^((list @t) %gx /=filesharer=/local/noun)
+    ::
+    [%x %local ~]
+::      =/  pub-local=^local  (local-map-subset:hc public)
+    ``noun+!>(~(tap by local.state))
+    ::
+    ::  .^((list @p) %gx /=filesharer=/subs/noun)
+    ::
+    [%x %subs ~]
+    =/  subs=(list ship)
+    %+  roll
+      ~(val by sup.bowl)
+    |=  [v=(pair ship ^path) ship=(list ship)]
+    (snoc ship p.v)
+    ``noun+!>(subs)
+    ::  list all files under remote @p
+    ::  .^(* %gx /=filesharer=/remote/(scot %p ~sul)/noun)
+    ::
+    [%x %remote @ta ~]
+    =/  uship=(unit @p)  (slaw %p i.t.t.path)
+    =/  rship=(map id file)
+      (~(got by remote) ?~(uship ~zod u.uship))
+    ``noun+!>(~(tap by rship))
+    ::  list current host
+    ::  .^(@t %gx /=filesharer=/host/noun)
+    ::
+    [%x %host ~]
+    ``noun+!>(?~(host *@t u.host))
+  ==
 ::
 ++  on-agent  ::  |=([wire sign:agent:gall] !!)
   |=  [=wire =sign:agent:gall]
@@ -128,6 +175,9 @@
          =/  resp  !<(update q.cage.sign)
            ~&  >  resp                                      :: remove after testing
          ?-  -.resp
+             %init
+           =/  new-remote=(map ship (map id file))  (~(put by remote) src.bowl +.resp)
+           [~ this(remote new-remote)]
              %add-remote
            =/  data=(map id file)  +.resp
            =/  new-remote=(map ship (map id file))
@@ -154,7 +204,17 @@
     ==
   ==
 ::
-++  on-arvo  on-arvo:def
+++  on-arvo  ::  on-arvo:def
+  |=  [=wire =sign-arvo]
+  ^-  (quip card _this)
+  ?.  ?=([%bind-foo ~] wire)
+    (on-arvo:def [wire sign-arvo])
+  ?>  ?=([%eyre %bound *] sign-arvo)
+  ?:  accepted.sign-arvo
+    %-  (slog leaf+"/foo bound successfully!" ~)
+    `this
+  %-  (slog leaf+"Binding /foo failed!" ~)
+  `this
 ++  on-fail   on-fail:def
 --
 ::
@@ -407,6 +467,42 @@
     ::
   ==
 ::
+++  https
+  |=  [eyre-id=@ta =inbound-request:eyre]
+  ?+    method.request.inbound-request
+      =/  data=octs
+        (as-octs:mimes:html '<h1>405 Method Not Allowed</h1>')
+      =/  content-length=@t
+        (crip ((d-co:co 1) p.data))
+      =/  =response-header:http
+        :-  405
+        :~  ['Content-Length' content-length]
+            ['Content-Type' 'text/html']
+            ['Allow' 'GET']
+        ==
+      :_  state
+      :~
+        [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
+        [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
+        [%give %kick [/http-response/[eyre-id]]~ ~]
+      ==
+    ::
+        %'GET'
+      =/  data=octs
+    ::    (as-octs:mimes:html '<h1>Hello, World!</h1>')
+        (press page)
+      =/  =response-header:http
+        :-  200
+        :~    ['Content-Type' 'text/html']
+        ==
+      :_  state
+      :~
+        [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
+        [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
+        [%give %kick [/http-response/[eyre-id]]~ ~]
+      ==
+    ==
+::
 ++  encode
   |=  [=ship =id]
   ^-  (unit @t)
@@ -435,6 +531,7 @@
       (cut 3 [16 16] raw)
     (cut 3 [8 8] raw)
   (end 6 raw)
+::  create subset of local from given ids
 ::
 ++  local-map-subset
   |=  ids=(set id)
@@ -493,4 +590,24 @@
         =>  (encode i.slist k)  ?~  .  `@t`~  u
       ext.v
   ==
+++  press  (cork en-xml:html as-octt:mimes:html)
+++  page
+    ^-  manx
+    ;html
+      ;head
+        ;title:"test page"
+        ;style:"form \{ display: inline-block; }"
+        ;meta(charset "utf-8");
+        ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ==
+      ;body
+        ::
+        ;h1: Welcome!
+        ;ul
+          ;li: first
+          ;li: second
+          ;li: third
+        ==
+      ==
+    ==
 --
