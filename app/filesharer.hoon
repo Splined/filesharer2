@@ -1,10 +1,13 @@
 /-  *filesharer
-/+  default-agent, dbug
+/+  default-agent, dbug, server
+/=  webpage  /app/filesharer/index
 |%
 +$  versioned-state
     $%  state-0
     ==
 ::
+::1  to allow encryption to be toggled on/off add a
+::1  ? to state.  e.g. encrypt=?
 +$  state-0  [%0 =secret =host =users =public =local =remote]
 ::
 ::  +$  card  card:agent:gall
@@ -95,9 +98,10 @@
       ~&  >  ids
       =/  local-subset=(map id [file perms])  (local-map-subset ids)
       =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
-      ::  encode urls
+      ::  encode urls if =(encrypt %.y)
       ::
       =/  data=(map id file)
+::1      ?.  encrypt  idata
         %-  ~(rut by idata)
         |=  [k=@ v=file] 
         ^-  file
@@ -120,13 +124,19 @@
   |=  =path
   ^-  (unit (unit cage))
   ?+  path  (on-peek:def path)
-    ::  list of all local files, permissions and public status
+    ::  map of all local files and permissions
     ::  .^((list @t) %gx /=filesharer=/local/noun)
     ::
     [%x %local ~]
 ::      =/  pub-local=^local  (local-map-subset:hc public)
-    ``noun+!>(~(tap by local.state))
+::    ``noun+!>(~(tap by local.state))
+    ``noun+!>(local.state)
+    ::  set of all public ids
     ::
+    ::
+    [%x %public ~]
+    ``noun+!>(public.state)
+    ::  list of all subscribers
     ::  .^((list @p) %gx /=filesharer=/subs/noun)
     ::
     [%x %subs ~]
@@ -143,7 +153,8 @@
     =/  uship=(unit @p)  (slaw %p i.t.t.path)
     =/  rship=(map id file)
       (~(got by remote) ?~(uship ~zod u.uship))
-    ``noun+!>(~(tap by rship))
+::    ``noun+!>(~(tap by rship))
+    ``noun+!>(rship)
     ::  list current host
     ::  .^(@t %gx /=filesharer=/host/noun)
     ::
@@ -264,7 +275,7 @@
     --
         ::
         %add-file-to-local
-    =/  file-id=id  (mug `@`title.file.action)  :: placeholder for random number gen
+    =/  file-id=id  (mug `@`title.file.action)  :: placeholder for random number gen or other unique id
     =/  idata=(map id file)  (malt ~[[file-id file.action]])
     |^
     =:  local  (~(put by local) file-id [file.action perms.action])
@@ -317,6 +328,7 @@
           ids.action
       |=  [k=@ v=[=file =perms]]  file.v
       =/  data=(map id file)
+::1      ?.  encrypt  idata
         %-  ~(rut by idata)
         |=  [k=@ v=file] 
         ^-  file
@@ -399,6 +411,9 @@
       :: this returns the value, v, with 'ship' removed from the 'black' set of the value
       [file.v `perms`[white.perms.v (~(del in black.perms.v) ship.action)]]
     --
+::1        :: 
+::1        %toggle-encryption
+::1    needs to go through every file and change url
         :: 
         %toggle-pub
     =/  slist=(list ship)
@@ -490,7 +505,10 @@
         %'GET'
       =/  data=octs
     ::    (as-octs:mimes:html '<h1>Hello, World!</h1>')
-        (press page)
+    ::    test.webpage                      :: works
+::        (press.webpage localui.webpage)    :: Internal Server Error
+    ::    (manx-to-octs:server localui.webpage)  :: Internal Server Error
+          localui-pressed.webpage            :: Internal Server Error
       =/  =response-header:http
         :-  200
         :~    ['Content-Type' 'text/html']
@@ -582,6 +600,7 @@
         ~[/updates/(scot %p i.slist)]
       ^-  cage  :-  %filesharer-update
       !>  :-  %add-remote
+::1      ?.  encrypt  idata
       %-  ~(rut by idata)
       |=  [k=@ v=file] 
       ^-  file
@@ -590,24 +609,4 @@
         =>  (encode i.slist k)  ?~  .  `@t`~  u
       ext.v
   ==
-++  press  (cork en-xml:html as-octt:mimes:html)
-++  page
-    ^-  manx
-    ;html
-      ;head
-        ;title:"test page"
-        ;style:"form \{ display: inline-block; }"
-        ;meta(charset "utf-8");
-        ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ==
-      ;body
-        ::
-        ;h1: Welcome!
-        ;ul
-          ;li: first
-          ;li: second
-          ;li: third
-        ==
-      ==
-    ==
 --
