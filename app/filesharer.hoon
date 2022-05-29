@@ -1,3 +1,17 @@
+::  Todo:
+::  Add toggle for encryption  ::1
+::  change urls to <app>/
+::  move binding of urls to ++on-init
+::
+::  Scrys
+::  
+::   [%x %local ~]       map of local files and permissions
+::   [%x %public ~]      set of all public ids
+::   [%x %subs ~]        list of all subscribers
+::   [%x %remote @ta ~]  list all files under a remote @p
+::   [%x %remotes ~]     list all remote @p and files
+::   [%x %host ~]        host server as @t
+::
 /-  *filesharer
 /+  default-agent, dbug, server
 /=  webpage  /app/filesharer/index
@@ -61,10 +75,20 @@
       |=  [v=(pair ship path) ship=(list ship)]
       (snoc ship p.v)
       ~&  >>  subs  `this
-        %bind
-      %-  (slog leaf+"Attempting to bind /foo." ~)
+    :: move this to +on-init
+    ::
+        %bind-local
+      %-  (slog leaf+"Attempting to bind /local." ~)
       :_  this
-      [%pass /bind-foo %arvo %e %connect `/'foo' %filesharer]~
+      [%pass /bind-local %arvo %e %connect `/'local' %filesharer]~
+        %bind-remote
+      %-  (slog leaf+"Attempting to bind /remote." ~)
+      :_  this
+      [%pass /bind-remote %arvo %e %connect `/'remote' %filesharer]~
+        %bind-options
+      %-  (slog leaf+"Attempting to bind /options." ~)
+      :_  this
+      [%pass /bind-options %arvo %e %connect `/'options' %filesharer]~
 ::  !!
     ==
       ::
@@ -128,11 +152,9 @@
     ::  .^((list @t) %gx /=filesharer=/local/noun)
     ::
     [%x %local ~]
-::      =/  pub-local=^local  (local-map-subset:hc public)
-::    ``noun+!>(~(tap by local.state))
     ``noun+!>(local.state)
     ::  set of all public ids
-    ::
+    ::  .^((set @) %gx /=filesharer=/public/noun)
     ::
     [%x %public ~]
     ``noun+!>(public.state)
@@ -147,7 +169,7 @@
     (snoc ship p.v)
     ``noun+!>(subs)
     ::  list all files under remote @p
-    ::  .^(* %gx /=filesharer=/remote/(scot %p ~sul)/noun)
+    ::  .^((map id file) %gx /=filesharer=/remote/(scot %p ~sul)/noun)
     ::
     [%x %remote @ta ~]
     =/  uship=(unit @p)  (slaw %p i.t.t.path)
@@ -155,6 +177,11 @@
       (~(got by remote) ?~(uship ~zod u.uship))
 ::    ``noun+!>(~(tap by rship))
     ``noun+!>(rship)
+    ::  list all remote @p and files
+    ::  .^((map ship (map id file)) %gx /=filesharer=/remote-all/noun)
+    ::
+    [%x %remotes ~]
+    ``noun+!>(remote.state)
     ::  list current host
     ::  .^(@t %gx /=filesharer=/host/noun)
     ::
@@ -218,14 +245,29 @@
 ++  on-arvo  ::  on-arvo:def
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
-  ?.  ?=([%bind-foo ~] wire)
-    (on-arvo:def [wire sign-arvo])
+  ?+  wire  (on-arvo:def [wire sign-arvo])
+    [%bind-local ~]
   ?>  ?=([%eyre %bound *] sign-arvo)
   ?:  accepted.sign-arvo
-    %-  (slog leaf+"/foo bound successfully!" ~)
+    %-  (slog leaf+"/local bound successfully!" ~)
     `this
-  %-  (slog leaf+"Binding /foo failed!" ~)
+  %-  (slog leaf+"Binding /local failed!" ~)
   `this
+    [%bind-remote ~]
+  ?>  ?=([%eyre %bound *] sign-arvo)
+  ?:  accepted.sign-arvo
+    %-  (slog leaf+"/remote bound successfully!" ~)
+    `this
+  %-  (slog leaf+"Binding /remote failed!" ~)
+  `this
+    [%bind-options ~]
+  ?>  ?=([%eyre %bound *] sign-arvo)
+  ?:  accepted.sign-arvo
+    %-  (slog leaf+"/options bound successfully!" ~)
+    `this
+  %-  (slog leaf+"Binding /options failed!" ~)
+  `this
+  ==
 ++  on-fail   on-fail:def
 --
 ::
@@ -504,11 +546,13 @@
     ::
         %'GET'
       =/  data=octs
-    ::    (as-octs:mimes:html '<h1>Hello, World!</h1>')
-    ::    test.webpage                      :: works
-::        (press.webpage localui.webpage)    :: Internal Server Error
-    ::    (manx-to-octs:server localui.webpage)  :: Internal Server Error
-          localui-pressed.webpage            :: Internal Server Error
+::      ?:  =(url.request.inbound-request '/local')
+      ?+  url.request.inbound-request
+          (as-octs:mimes:html '<h1>Hello, World!</h1>')
+        %'/local'  (press.webpage ~(localui webpage bowl))
+        %'/remote'  (press.webpage ~(remoteui webpage bowl))
+        %'/options'  (press.webpage ~(optionsui webpage bowl))
+      ==
       =/  =response-header:http
         :-  200
         :~    ['Content-Type' 'text/html']
