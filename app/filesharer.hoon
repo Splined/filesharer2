@@ -3,14 +3,13 @@
 ::  change urls to <app>/
 ::  move binding of urls to ++on-init
 ::
-::  Scrys
-::  
-::   [%x %local ~]       map of local files and permissions
-::   [%x %public ~]      set of all public ids
-::   [%x %subs ~]        list of all subscribers
-::   [%x %remote @ta ~]  list all files under a remote @p
-::   [%x %remotes ~]     list all remote @p and files
-::   [%x %host ~]        host server as @t
+::    scrys
+::  x  /local          (map id [file perms])     local files
+::  x  /public         (set id)                  all public ids
+::  x  /subs           (list ship)               all subscribers
+::  x  /remote/[ship]  (list file)               files of a ship
+::  x  /remotes        (map ship (map id file))  all remote files
+::  x  /host           @t                        host server url
 ::
 /-  *filesharer
 /+  default-agent, dbug, server
@@ -64,6 +63,7 @@
 ++  on-poke
   |=  [=mark =vase]
   ^-  (quip card _this)
+  ?>  =(src.bowl our.bowl)
   ?+    mark  (on-poke:def mark vase)
       %noun
     ?>  =(our src):bowl
@@ -78,17 +78,17 @@
     :: move this to +on-init
     ::
         %bind-local
-      %-  (slog leaf+"Attempting to bind /local." ~)
+      %-  (slog leaf+"Attempting to bind /filesharer." ~)
       :_  this
-      [%pass /bind-local %arvo %e %connect `/'local' %filesharer]~
-        %bind-remote
-      %-  (slog leaf+"Attempting to bind /remote." ~)
-      :_  this
-      [%pass /bind-remote %arvo %e %connect `/'remote' %filesharer]~
-        %bind-options
-      %-  (slog leaf+"Attempting to bind /options." ~)
-      :_  this
-      [%pass /bind-options %arvo %e %connect `/'options' %filesharer]~
+      [%pass /bind-local %arvo %e %connect `/'filesharer' %filesharer]~
+::        %bind-remote
+::      %-  (slog leaf+"Attempting to bind /remote." ~)
+::      :_  this
+::      [%pass /bind-remote %arvo %e %connect `/'remote' %filesharer]~
+::        %bind-options
+::      %-  (slog leaf+"Attempting to bind /options." ~)
+::      :_  this
+::      [%pass /bind-options %arvo %e %connect `/'options' %filesharer]~
 ::  !!
     ==
       ::
@@ -353,8 +353,9 @@
         %remove-file-from-local
     =/  ids=(set id)  (silt ~[id.action])
     =/  ships=(set ship)  =<  white.perms  (~(got by local) id.action)
-    =:  local  (~(del by local) id.action)
-        users  (~(rut by users) |=([k=ship v=user] `user`[rev.v (~(del in files.v) id.action)]))
+    =:  local   (~(del by local) id.action)
+        public  (~(del in public) id.action)
+        users   (~(rut by users) |=([k=ship v=user] `user`[rev.v (~(del in files.v) id.action)]))
     ==
     =/  =cage  [%filesharer-update !>([%remove-remote ids])]
     :_  state
@@ -527,31 +528,15 @@
 ++  https
   |=  [eyre-id=@ta =inbound-request:eyre]
   ?+    method.request.inbound-request
-      =/  data=octs
-        (as-octs:mimes:html '<h1>405 Method Not Allowed</h1>')
-      =/  content-length=@t
-        (crip ((d-co:co 1) p.data))
-      =/  =response-header:http
-        :-  405
-        :~  ['Content-Length' content-length]
-            ['Content-Type' 'text/html']
-            ['Allow' 'GET']
-        ==
-      :_  state
-      :~
-        [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
-        [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
-        [%give %kick [/http-response/[eyre-id]]~ ~]
-      ==
+      (four-oh-five eyre-id)
     ::
         %'GET'
       =/  data=octs
-::      ?:  =(url.request.inbound-request '/local')
       ?+  url.request.inbound-request
           (as-octs:mimes:html '<h1>Hello, World!</h1>')
-        %'/local'  (press.webpage ~(localui webpage bowl))
-        %'/remote'  (press.webpage ~(remoteui webpage bowl))
-        %'/options'  (press.webpage ~(optionsui webpage bowl))
+        %'/filesharer/local'  (press.webpage ~(localui webpage bowl))
+        %'/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
+        %'/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
       ==
       =/  =response-header:http
         :-  200
@@ -563,7 +548,80 @@
         [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
         [%give %kick [/http-response/[eyre-id]]~ ~]
       ==
+    ::
+       %'POST'
+      ?~  body.request.inbound-request  ~
+::       =/  query=(unit (list [k=@t v=@t]))
+      =/  query=(map @t @t)
+      %-  my
+      ^-  (list (pair @t @t))
+      =>  (rush q.u.body.request.inbound-request yquy:de-purl:html)
+      ?~  .  ~[['' '']]  u       ::  better way to return null?
+::       ~&  >  body.request.inbound-request
+       ~&  >  query
+       ~&  >>  (~(get by query) 'fileid')
+::      =/  qkey=@  `@`(slav %ud (~(got by query) 'fileid'))
+::      ?+  query
+      ?~  what=(~(get by query) 'what')
+        ~                                   :: change logic here?
+      ?~  fileid=(~(get by query) 'fileid')
+      ?+  u.what
+        (four-oh-five eyre-id)
+          %'add'
+        =/  =file
+        :^    (~(got by query) 'filename')
+            (some (~(got by query) 'note'))
+          (~(got by query) 'url')
+        (some (~(got by query) 'ext'))
+        ~&  >>>  file
+        =|  =perms
+        =/  =cage  [%filesharer-action !>([%add-file-to-local file perms])]
+        :_  state
+        :~
+        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+          %'test'
+        ~&  >>  (~(got by query) 'test')
+        `state
+      ==
+::      ?.  (~(has by query) 'fileid')
+      ~&  >>>  what
+      ?+  u.what
+        (four-oh-five eyre-id)
+          %'toggle'
+::      =/  =cage  [%filesharer-action !>([%toggle-pub qkey])]
+        =/  =cage  [%filesharer-action !>([%toggle-pub (slav %ud u.fileid)])]
+        :_  state
+        :~
+        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+          %'remove'
+        =/  =cage  [%filesharer-action !>([%remove-file-from-local (slav %ud u.fileid)])]
+        :_  state
+        :~
+        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+      ==
+  ==
+::
+++  four-oh-five
+  |=  eyre-id=@ta
+  =/  data=octs
+    (as-octs:mimes:html '<h1>405 Method Not Allowed</h1>')
+  =/  content-length=@t
+    (crip ((d-co:co 1) p.data))
+  =/  =response-header:http
+    :-  405
+    :~  ['Content-Length' content-length]
+        ['Content-Type' 'text/html']
+        ['Allow' 'GET']
     ==
+  :_  state
+  :~
+    [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
+    [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
+    [%give %kick [/http-response/[eyre-id]]~ ~]
+  ==
 ::
 ++  encode
   |=  [=ship =id]
