@@ -1,7 +1,10 @@
 ::  Todo:
-::  Add toggle for encryption  ::1
-::  change urls to <app>/
-::  move binding of urls to ++on-init
+::  -Add toggle for encryption  ::1
+::  -improve update after %POST   ::2
+::  -change binding to app/filesharer ?
+::  -move binding to ++on-init
+::  -should urls be stored as relative to host? If host is changed,
+::  would all urls need to change anyway?
 ::
 ::    scrys
 ::  x  /local          (map id [file perms])     local files
@@ -77,19 +80,10 @@
       ~&  >>  subs  `this
     :: move this to +on-init
     ::
-        %bind-local
+        %bind-filesharer
       %-  (slog leaf+"Attempting to bind /filesharer." ~)
       :_  this
       [%pass /bind-local %arvo %e %connect `/'filesharer' %filesharer]~
-::        %bind-remote
-::      %-  (slog leaf+"Attempting to bind /remote." ~)
-::      :_  this
-::      [%pass /bind-remote %arvo %e %connect `/'remote' %filesharer]~
-::        %bind-options
-::      %-  (slog leaf+"Attempting to bind /options." ~)
-::      :_  this
-::      [%pass /bind-options %arvo %e %connect `/'options' %filesharer]~
-::  !!
     ==
       ::
       %filesharer-action
@@ -111,15 +105,14 @@
     ^-  (quip card _this)
     ?+    path  (on-watch:def path)
         [%updates @ ~]
-      ~&  >>>  path
-      =/  who=@p  (slav %p i.t.path) 
+      ~&  >>>  path                                         ::  remove after testing
+      =/  who=@p  (slav %p i.t.path)
+      =?  users  ?!  (~(has by users) who)
+        (~(put by users) who [*rev *(set id)])
       =/  ids=(set @)
-      ::  handle case of user subscribing without being in any wl
         %-  ~(uni in public)
-        =>  (~(get by users) who)
-          ?~  .  ~
-        files.u  
-      ~&  >  ids
+          =>  (~(got by users) who)  files
+      ~&  >  ids                                            ::  remove after testing
       =/  local-subset=(map id [file perms])  (local-map-subset ids)
       =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
       ::  encode urls if =(encrypt %.y)
@@ -175,7 +168,6 @@
     =/  uship=(unit @p)  (slaw %p i.t.t.path)
     =/  rship=(map id file)
       (~(got by remote) ?~(uship ~zod u.uship))
-::    ``noun+!>(~(tap by rship))
     ``noun+!>(rship)
     ::  list all remote @p and files
     ::  .^((map ship (map id file)) %gx /=filesharer=/remote-all/noun)
@@ -278,6 +270,9 @@
   |=  =action
   ^-  (quip card _state)
   ?-  -.action
+  ::  if host changes, all links should change as well.
+  ::  update all url.file in map of local and
+  ::  send %init action to all ships in remote
         %change-host
     =/  new-host=(unit @t)  (some url.action)
     =.  host  new-host
@@ -325,7 +320,7 @@
     ==
     ::
       :_  state
-      (generate-facts idata white.perms.action)
+      (generate-facts %add-remote idata white.perms.action)
     ::  add missing users to state before updating their file lists
     ::
     ++  update-users
@@ -348,8 +343,8 @@
       :-  rev.v
       (~(put in files.v) (mug `@`title.file.action))  ::  <-- is there a way to access file-id above?
     --
-        ::  if file is removed from local, it should also be removed from all user id lists
-        :: 
+    ::  if file is removed from local, it should also be removed from all user id lists
+    ::
         %remove-file-from-local
     =/  ids=(set id)  (silt ~[id.action])
     =/  ships=(set ship)  =<  white.perms  (~(got by local) id.action)
@@ -360,10 +355,12 @@
     =/  =cage  [%filesharer-update !>([%remove-remote ids])]
     :_  state
       ~[[%give %fact (generate-paths ships) cage]] 
-        ::  add ship if missing from users, then add ship to all wl in set,
-        ::  then add ids to user
-        :: 
+    ::  add ship if missing from users, then add ship to all wl in set,
+    ::  then add ids to user
+    ::
         %add-ship-to-wl
+      =?  users  ?!  (~(has by users) ship.action)
+        (~(put by users) ship.action [*rev *(set id)])
       =/  idata=(map id file)
       %-  %~  rut
             by
@@ -381,19 +378,11 @@
         ext.v
       =/  =cage  [%filesharer-update !>([%add-remote data])]
     |^
-    ?:  (~(has by users) ship.action)
       =:  local  (~(rut by local) add-to-wl)
           users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
       ==
       :_  state
         ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
-    =:  users  (~(put by users) ship.action [*rev *(set id)])
-        local  (~(rut by local) add-to-wl)
-        users  (~(jab by users) ship.action |=(x=user [rev.x (~(uni in files.x) ids.action)]))
-    ==
-    ::
-    :_  state
-      ~[[%give %fact ~[/updates/(scot %p ship.action)] cage]] 
     ::  used with rut:by on 'local' in state to add ship to wl of each file
     ::  in set. e.g. (~(rut by local) add-to-wl)
     ::
@@ -472,7 +461,8 @@
       =.  public  (~(del in public) id.action)
       =/  ids=(set id)  (silt ~[id.action])
       =/  wships=(set ship)  =<  white.perms  (~(got by local) id.action)
-      :: need an accumulator for ships in sup.bowl? and not in white.perms
+      :: ships in sup.bowl and not in white.perms
+      ::
       =/  rships=(set ship)
       %-  ~(rep in wships)
       |:  [ship=*ship subs=(silt slist)]
@@ -489,7 +479,7 @@
         =<  file  (~(got by local) id.action)
     ==
     :_  state
-    (generate-facts idata (silt slist))
+    (generate-facts %add-remote idata (silt slist))
 ::    `state
         :: 
         %set-secret
@@ -548,60 +538,118 @@
         [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
         [%give %kick [/http-response/[eyre-id]]~ ~]
       ==
+    ::  need to completely reorganize the logic for %'POST's
+    ::
     ::
        %'POST'
       ?~  body.request.inbound-request  ~
-::       =/  query=(unit (list [k=@t v=@t]))
       =/  query=(map @t @t)
       %-  my
       ^-  (list (pair @t @t))
       =>  (rush q.u.body.request.inbound-request yquy:de-purl:html)
       ?~  .  ~[['' '']]  u       ::  better way to return null?
-::       ~&  >  body.request.inbound-request
-       ~&  >  query
-       ~&  >>  (~(get by query) 'fileid')
-::      =/  qkey=@  `@`(slav %ud (~(got by query) 'fileid'))
-::      ?+  query
+       ~&  >  query                                         ::  remove after testing
+       ~&  >>  (~(get by query) 'fileid')                   ::  remove after testing
       ?~  what=(~(get by query) 'what')
-        ~                                   :: change logic here?
+        ~
       ?~  fileid=(~(get by query) 'fileid')
       ?+  u.what
         (four-oh-five eyre-id)
+        ::
           %'add'
         =/  =file
         :^    (~(got by query) 'filename')
             (some (~(got by query) 'note'))
           (~(got by query) 'url')
         (some (~(got by query) 'ext'))
-        ~&  >>>  file
+        ~&  >>>  file                                       ::  remove after testing
         =|  =perms
         =/  =cage  [%filesharer-action !>([%add-file-to-local file perms])]
         :_  state
         :~
-        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
         ==
-          %'test'
-        ~&  >>  (~(got by query) 'test')
-        `state
+        ::
+          %'edithost'
+        =/  host=@t  (~(got by query) 'hostname')
+        =/  =cage  [%filesharer-action !>([%change-host host])]
+        :_  state
+        :~
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+        ::
+          %'newsub'
+        =/  =ship  (slav %p (~(got by query) 'sub'))
+        =/  =cage  [%filesharer-action !>([%subscribe ship])]
+        :_  state
+        :~
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+        ::
+          %'leave'
+        =/  =ship  (slav %p (~(got by query) 'who'))
+        =/  =cage  [%filesharer-action !>([%leave ship])]
+        :_  state
+        :~
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
       ==
-::      ?.  (~(has by query) 'fileid')
       ~&  >>>  what
       ?+  u.what
         (four-oh-five eyre-id)
+        ::
           %'toggle'
-::      =/  =cage  [%filesharer-action !>([%toggle-pub qkey])]
         =/  =cage  [%filesharer-action !>([%toggle-pub (slav %ud u.fileid)])]
         :_  state
-        :~
-        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
-        ==
-          %'remove'
+        ::2  this does update page, but also gives an
+        ::2  "unexpected subcription update error in dojo"
+        ::2  what is the correct way to update after %POST?
+        %+  weld
+          ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
+        (three-oh-three eyre-id)
+        ::
+          %'delete'
         =/  =cage  [%filesharer-action !>([%remove-file-from-local (slav %ud u.fileid)])]
         :_  state
+        %+  weld
+          ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
+        (three-oh-three eyre-id)
+        ::
+          %'add_ship'
+        =/  =ship  (slav %p (~(got by query) 'who'))
+        =/  ids=(set id)  (silt ~[(slav %ud u.fileid)])
+        =/  =cage  [%filesharer-action !>([%add-ship-to-wl ids ship])]
+        :_  state
         :~
-        [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
         ==
+        ::
+          %'remove'
+        =/  =ship  (slav %p (~(got by query) 'who'))
+        =/  ids=(set id)  (silt ~[(slav %ud u.fileid)])
+        =/  =cage  [%filesharer-action !>([%rm-ship-from-wl ids ship])]
+        :_  state
+        %+  weld
+          ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
+        (three-oh-three eyre-id)
       ==
+  ==
+::
+::  No idea if this is correct
+++  three-oh-three
+  |=  eyre-id=@ta
+  ^-  (list card)
+  =/  data=octs
+    (as-octs:mimes:html '<a href="./local">Success!</a>')
+  =/  =response-header:http
+    :-  303
+    :~    ['Content-Type' 'text/html']
+          ['location' './local']
+    ==
+  :~
+    [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
+    [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
+    [%give %kick [/http-response/[eyre-id]]~ ~]
   ==
 ::
 ++  four-oh-five
@@ -686,7 +734,8 @@
 ::  need to encode, create cage, and create path for each ship.
 ::
 ++  generate-facts
-  |=  [idata=(map id file) ships=(set @p)]
+  ::  add an input with $?(%init %add-remote)
+  |=  [mode=$?(%add-remote %init) idata=(map id file) ships=(set @p)]
   =|  flist=(list card)
   =/  slist=(list ship)  ~(tap in ships)
   |-  ^-  (list card)
@@ -701,7 +750,8 @@
           %fact
         ~[/updates/(scot %p i.slist)]
       ^-  cage  :-  %filesharer-update
-      !>  :-  %add-remote
+    ::  add a ?- here to cover %init, %add-remote and %remove-remote?
+      !>  :-  mode
 ::1      ?.  encrypt  idata
       %-  ~(rut by idata)
       |=  [k=@ v=file] 

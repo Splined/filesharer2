@@ -1,7 +1,5 @@
 /-  *filesharer
 |_  =bowl:gall
-::  ++test works fine when used as test.webpage in main file. ++webui gives 'Internal Server Error' 
-++  test  (as-octs:mimes:html '<h1>Hello, World!</h1>')  ::  remove after testing
 ++  press  (cork en-xml:html as-octt:mimes:html)
 ++  peek-local-private
   =/  pek=(map id [file perms])  .^((map id [file perms]) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/local/noun)
@@ -21,33 +19,54 @@
   (~(del by file-perm) id)
   pri-pek
 ::
-++  friend-adder
-|=  =ship
-^-  manx
-;form(method "post")
-  ;input(type "hidden", name "who", value "{(scow %p ship)}");
-  ;button(type "submit", name "what", value "meet"):"+"
-==
-::
 ++  local-print
   |=  [a=id b=(pair file perms)]
   =/  note  ?~(note.p.b *@t u.note.p.b)
   =/  ext  ?~(ext.p.b *@t u.ext.p.b)
   ;li
     ; {(trip title.p.b)}
+    ;form(method "post")
+      ;input(type "submit", name "what", value "delete");
+      ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
+    ==
     ;ul
       ;li: {(trip note)}
-      ;li: {(trip url.p.b)}
+      ;li
+        ;a(href <(trip url.p.b)>): {(trip url.p.b)}
+      ==
+::      ;li: {(trip url.p.b)}
       ;li: {(trip ext)}
     ==
     ;form(method "post")
       ;input(type "submit", name "what", value "toggle");
       ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
     ==
+    :: form to add ship to whitelist
+    ::
+    ;br;
+    ; Whitelisted ships
     ;form(method "post")
-      ;input(type "submit", name "what", value "remove");
+      ;input(type "submit", name "what", value "add_ship");
       ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
+      ;input(type "text", name "who", placeholder "~sampel");
+      ;br;
     ==
+    :: set of wl ships and a form for each to remove
+    ::
+    ;ul
+      ;*  ^-  marl
+          %+  turn  ~(tap in white.q.b)
+          |=  w=ship
+          ;li
+              ; {(scow %p w)}
+              ;form(method "post")
+                ;input(type "submit", name "what", value "remove");
+                ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
+                ;input(type "hidden", name "who", value "{(scow %p w)}");
+              ==
+          ==
+    ==
+    ;br;
   ==
 ++  localui
     ^-  manx
@@ -63,7 +82,8 @@
         ;h1: Local files
         ;br;
         ;form(method "post")
-          ;h4: New file
+          ;label(for "filename"): New file:
+          ;br;
           ;input(type "text", name "filename", placeholder "filename");
           ;br;
           ;input(type "text", name "note", placeholder "note");
@@ -92,12 +112,14 @@
     ==
 ++  peek-remote
   .^((map ship (map id file)) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/remotes/noun)
-::  =/  remote=(map ship (map id file))  .^((map ship (map id file)) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/remotes/noun)
-::  remote
 ++  remote-print
   |=  [a=ship b=(map id file)]
   ;li
     ; {(scow %p a)}
+    ;form(method "post")
+      ;input(type "submit", name "what", value "leave");
+      ;input(type "hidden", name "who", value "{(scow %p a)}");
+    ==
     ;ul
       ;*  %+  turn  ~(tap by b)
           |=  (pair id file)
@@ -107,7 +129,9 @@
             ; {(trip title.q)}
             ;ul
               ;li: {(trip note)}
-              ;li: {(trip url.q)}
+              ;li
+                ;a(href <(trip url.q)>): {(trip url.q)}
+              ==
               ;li: {(trip ext)}
             ==
           == 
@@ -125,6 +149,13 @@
       ;body
         ::
         ;h1: Remote files
+        ;form(method "post")
+::          ;label(for "hostname"):Change host:
+::          ;label: New sub:
+          ;input(type "submit", name "what", value "newsub");
+          ;input(type "text", name "sub", placeholder "~sampel");
+          ;br;
+        ==
         ;ul
           ;*  (turn ~(tap by peek-remote) remote-print)
         ==
@@ -152,6 +183,15 @@
         :: (trip .^(@t ...)) just displays scry text itself
         ::
         {<.^(@t %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/host/noun)>}
+        ;br;
+        ;form(method "post")
+::          ;h4: New file
+::          ;label(for "hostname"):Change host:
+          ;label: Change host:
+          ;input(type "text", name "hostname", placeholder "hostname.com");
+          ;br;
+          ;input(type "submit", name "what", value "edithost");
+        ==
         ;br;
         ;b: Links encrypted?
         ;br;
