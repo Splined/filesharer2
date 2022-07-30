@@ -25,6 +25,7 @@
 +$  public  (set id)
 +$  local  (map id [=file =perms])
 +$  remote  (map ship (map id file))
++$  encrypted  [links=? http=?]
 ::
 ::  changes to local data
 +$  action
@@ -38,6 +39,7 @@
       [%add-ship-to-bl ids=(set id) =ship]
       [%rm-ship-from-bl ids=(set id) =ship]
       [%toggle-pub id=@]
+      [%toggle-encrypted type=?(%links %http)]
       [%set-secret k=@ iv=@]
       [%encode-test =ship =id]
       [%decode-test url=@t]

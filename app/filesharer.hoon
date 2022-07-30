@@ -1,10 +1,11 @@
 ::  Todo:
-::  -Add toggle for encryption  ::1
 ::  -improve update after %POST   ::2
-::  -change binding to app/filesharer ?
-::  -move binding to ++on-init
 ::  -should urls be stored as relative to host? If host is changed,
 ::  would all urls need to change anyway?
+::  Done:
+::  -change binding to app/filesharer
+::  -move binding to ++on-init
+::  -Add toggle for encryption
 ::
 ::    scrys
 ::  x  /local          (map id [file perms])     local files
@@ -22,9 +23,7 @@
     $%  state-0
     ==
 ::
-::1  to allow encryption to be toggled on/off add a
-::1  ? to state.  e.g. encrypt=?
-+$  state-0  [%0 =secret =host =users =public =local =remote]
++$  state-0  [%0 =secret =host =users =public =local =remote =encrypted]
 ::
 ::  +$  card  card:agent:gall
 +$  card  (wind note gift)
@@ -46,7 +45,11 @@
 ++  on-init
   ^-  (quip card _this)
   ~&  "filesharer compiled successfully!"
-  `this
+  %-  (slog leaf+"Attempting to bind /apps/filesharer." ~)
+  =+  [[~ [%apps %filesharer ~]] dap.bowl]
+  :_  this
+::      [%pass /bind-local %arvo %e %connect `/'filesharer' %filesharer]~
+  [%pass /eyre/connect %arvo %e %connect -]~
 ::
 ++  on-save
   ^-  vase
@@ -78,12 +81,6 @@
       |=  [v=(pair ship path) ship=(list ship)]
       (snoc ship p.v)
       ~&  >>  subs  `this
-    :: move this to +on-init
-    ::
-        %bind-filesharer
-      %-  (slog leaf+"Attempting to bind /filesharer." ~)
-      :_  this
-      [%pass /bind-local %arvo %e %connect `/'filesharer' %filesharer]~
     ==
       ::
       %filesharer-action
@@ -115,10 +112,10 @@
       ~&  >  ids                                            ::  remove after testing
       =/  local-subset=(map id [file perms])  (local-map-subset ids)
       =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
-      ::  encode urls if =(encrypt %.y)
+      ::  encode urls if =(links:encrypted %.y)
       ::
       =/  data=(map id file)
-::1      ?.  encrypt  idata
+      ?.  links.encrypted  idata
         %-  ~(rut by idata)
         |=  [k=@ v=file] 
         ^-  file
@@ -142,7 +139,7 @@
   ^-  (unit (unit cage))
   ?+  path  (on-peek:def path)
     ::  map of all local files and permissions
-    ::  .^((list @t) %gx /=filesharer=/local/noun)
+    ::  .^((map id [=file =perms]) %gx /=filesharer=/local/noun)
     ::
     [%x %local ~]
     ``noun+!>(local.state)
@@ -155,7 +152,7 @@
     ::  .^((list @p) %gx /=filesharer=/subs/noun)
     ::
     [%x %subs ~]
-    =/  subs=(list ship)
+    =/  subs=(list @p)
     %+  roll
       ~(val by sup.bowl)
     |=  [v=(pair ship ^path) ship=(list ship)]
@@ -238,26 +235,12 @@
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
   ?+  wire  (on-arvo:def [wire sign-arvo])
-    [%bind-local ~]
+    [%eyre %connect ~]
   ?>  ?=([%eyre %bound *] sign-arvo)
   ?:  accepted.sign-arvo
-    %-  (slog leaf+"/local bound successfully!" ~)
+    %-  (slog leaf+"/apps/filesharer bound successfully!" ~)
     `this
-  %-  (slog leaf+"Binding /local failed!" ~)
-  `this
-    [%bind-remote ~]
-  ?>  ?=([%eyre %bound *] sign-arvo)
-  ?:  accepted.sign-arvo
-    %-  (slog leaf+"/remote bound successfully!" ~)
-    `this
-  %-  (slog leaf+"Binding /remote failed!" ~)
-  `this
-    [%bind-options ~]
-  ?>  ?=([%eyre %bound *] sign-arvo)
-  ?:  accepted.sign-arvo
-    %-  (slog leaf+"/options bound successfully!" ~)
-    `this
-  %-  (slog leaf+"Binding /options failed!" ~)
+  %-  (slog leaf+"Binding /apps/filesharer failed!" ~)
   `this
   ==
 ++  on-fail   on-fail:def
@@ -368,7 +351,7 @@
           ids.action
       |=  [k=@ v=[=file =perms]]  file.v
       =/  data=(map id file)
-::1      ?.  encrypt  idata
+      ?.  links.encrypted  idata
         %-  ~(rut by idata)
         |=  [k=@ v=file] 
         ^-  file
@@ -435,6 +418,7 @@
     `state
     ::  used with rut:by on 'local' in state to remove ship from bl of each file
     ::  in set. e.g. (~(rut by local) rm-from-bl)
+    ::
     ++  rm-from-bl
       |=  [k=id v=[=file =perms]]
       ^-  [file perms]
@@ -443,10 +427,37 @@
       :: this returns the value, v, with 'ship' removed from the 'black' set of the value
       [file.v `perms`[white.perms.v (~(del in black.perms.v) ship.action)]]
     --
-::1        :: 
-::1        %toggle-encryption
-::1    needs to go through every file and change url
-        :: 
+        ::
+        %toggle-encrypted
+    =/  slist=(list ship)
+    %~  tap
+      in
+    %-  %~  del
+      in
+    %-  silt
+    %+  roll
+      ~(val by sup.bowl)
+    |=  [v=(pair ship path) ship=(list ship)]
+    (snoc ship p.v)
+    our.bowl
+    =.  links.encrypted  !links.encrypted
+    =/  flist=(list card)
+    %+  roll
+      slist
+    |=  [=ship card=(list card)]
+    %+  weld
+      card
+    =/  ids=(set @)
+    %-  ~(uni in public)
+    =>  (~(got by users) ship)  files
+    =/  local-subset=(map id [file perms])  (local-map-subset ids)
+    =/  idata=(map id file)  (~(rut by local-subset) |=([k=@ v=[=file =perms]] file.v))
+    ::  if idata is empty a card is still sent to the ship.
+    ::  shouldn't cause any issues other that extra traffic
+    ::  but probably could be handled better
+    (generate-facts %init idata (silt ~[ship]))
+    [flist state]
+        ::
         %toggle-pub
     =/  slist=(list ship)
     %+  roll
@@ -524,9 +535,9 @@
       =/  data=octs
       ?+  url.request.inbound-request
           (as-octs:mimes:html '<h1>Hello, World!</h1>')
-        %'/filesharer/local'  (press.webpage ~(localui webpage bowl))
-        %'/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
-        %'/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
+        %'/apps/filesharer/local'  (press.webpage ~(localui webpage bowl))
+        %'/apps/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
+        %'/apps/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
       ==
       =/  =response-header:http
         :-  200
@@ -573,6 +584,27 @@
           %'edithost'
         =/  host=@t  (~(got by query) 'hostname')
         =/  =cage  [%filesharer-action !>([%change-host host])]
+        :_  state
+        :~
+          [%pass /self %agent [our.bowl dap.bowl] %poke cage]
+        ==
+        ::
+          %'editlinks'
+        =/  resp=@t  (~(got by query) 'linkname')
+        =/  tog=?
+          ?|
+            ?&
+              =(resp 'clear')
+              links:encrypted
+            ==
+            ?&
+              =(resp 'hash')
+              ?!  links:encrypted
+            ==
+          ==
+        ?.  tog
+          `state
+        =/  =cage  [%filesharer-action !>([%toggle-encrypted %links])]
         :_  state
         :~
           [%pass /self %agent [our.bowl dap.bowl] %poke cage]
@@ -670,6 +702,9 @@
     [%give %fact [/http-response/[eyre-id]]~ %http-response-data !>(`data)]
     [%give %kick [/http-response/[eyre-id]]~ ~]
   ==
+::  ++encode will crash if ship is not in users.
+::  However, ships are added to users as needed in ++on-watch and in
+::  %add-ship-to-wl, so this should never happen
 ::
 ++  encode
   |=  [=ship =id]
@@ -734,7 +769,6 @@
 ::  need to encode, create cage, and create path for each ship.
 ::
 ++  generate-facts
-  ::  add an input with $?(%init %add-remote)
   |=  [mode=$?(%add-remote %init) idata=(map id file) ships=(set @p)]
   =|  flist=(list card)
   =/  slist=(list ship)  ~(tap in ships)
@@ -750,9 +784,8 @@
           %fact
         ~[/updates/(scot %p i.slist)]
       ^-  cage  :-  %filesharer-update
-    ::  add a ?- here to cover %init, %add-remote and %remove-remote?
       !>  :-  mode
-::1      ?.  encrypt  idata
+      ?.  links.encrypted  idata
       %-  ~(rut by idata)
       |=  [k=@ v=file] 
       ^-  file

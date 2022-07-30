@@ -1,3 +1,8 @@
+::  Todo:
+::  Done:
+::  -add list of subscribers to local? page
+::  -add forms for link and http encryption to options page
+::
 /-  *filesharer
 |_  =bowl:gall
 ++  press  (cork en-xml:html as-octt:mimes:html)
@@ -19,6 +24,20 @@
   (~(del by file-perm) id)
   pri-pek
 ::
+++  peek-subs
+  ^-  (list @p)
+  %~  tap
+    in
+  %-  %~  del
+    in
+  %-  silt
+  .^((list @p) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/subs/noun)
+  our.bowl
+++  sub-print
+  |=  =ship
+  ;li
+    ; {(scow %p ship)}
+  ==
 ++  local-print
   |=  [a=id b=(pair file perms)]
   =/  note  ?~(note.p.b *@t u.note.p.b)
@@ -105,13 +124,22 @@
           ;*  (turn ~(tap by peek-local-private) local-print)
         ==
         ;br;
+        ;h3: Subscribers
+        ;ul
+          ;*  (turn peek-subs sub-print)
+        ==
+        ;br;
         ;a/"./remote": Remote files
         ;br;
         ;a/"./options": Edit program options
       ==
     ==
 ++  peek-remote
-  .^((map ship (map id file)) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/remotes/noun)
+::  .^((map ship (map id file)) %gx /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/remotes/noun)
+  .^  (map ship (map id file))
+    %gx
+    /(scot %p our.bowl)/filesharer/(scot %da now.bowl)/remotes/noun
+  ==
 ++  remote-print
   |=  [a=ship b=(map id file)]
   ;li
@@ -187,13 +215,26 @@
         ;form(method "post")
 ::          ;h4: New file
 ::          ;label(for "hostname"):Change host:
+         ;label(for "httpselect"): http type:
+         ;select(name "httpname", id "httpselect")
+           ;option(value "http"): http
+           ;option(value "https"): https
+         ==
           ;label: Change host:
           ;input(type "text", name "hostname", placeholder "hostname.com");
           ;br;
           ;input(type "submit", name "what", value "edithost");
         ==
         ;br;
-        ;b: Links encrypted?
+        ;form(method "post")
+         ;label(for "linkselect"): link type:
+         ;select(name "linkname", id "linkselect")
+           ;option(value "clear"): clear
+           ;option(value "hash"): encoded
+         ==
+         ;br;
+         ;input(type "submit", name "what", value "editlinks");
+        ==
         ;br;
         ;a/"./local": Local files
         ;br;
