@@ -3,9 +3,6 @@
 ::  -should urls be stored as relative to host? If host is changed,
 ::  would all urls need to change anyway?
 ::  Done:
-::  -change binding to app/filesharer
-::  -move binding to ++on-init
-::  -Add toggle for encryption
 ::
 ::    scrys
 ::  x  /local          (map id [file perms])     local files
@@ -84,7 +81,7 @@
     ==
       ::
       %filesharer-action
-    ~&  >>>  !<(action vase)
+    ~&  >>>  !<(action vase)                                ::  remove after testing
     =^  cards  state
     (handle-action:hc !<(action vase))
     [cards this]
@@ -191,10 +188,9 @@
     ::
         %kick
       %-  (slog '%filesharer: Got kick, resubscribing...' ~)
-      `this
-     :: this created an infinite loop!   :_  this
-     :: :~  [%pass /updates/wire %agent [src.bowl %filesharer] %watch /updates]
-     :: ==
+      :_  this
+      :~  [%pass wire %agent [src.bowl %filesharer] %watch /updates]
+      ==
     ::
         %fact
       ?+  p.cage.sign  (on-agent:def wire sign)
@@ -460,10 +456,16 @@
         ::
         %toggle-pub
     =/  slist=(list ship)
+    %~  tap
+      in
+    %-  %~  del
+      in
+    %-  silt
     %+  roll
       ~(val by sup.bowl)
     |=  [v=(pair ship path) ship=(list ship)]
     (snoc ship p.v)
+    our.bowl
     ?.  (~(has by local) id.action)
       `state
     ::  Toggle off.  Delete from only those ships not in file's whitelist

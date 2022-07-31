@@ -1,7 +1,5 @@
 ::  Todo:
 ::  Done:
-::  -add list of subscribers to local? page
-::  -add forms for link and http encryption to options page
 ::
 /-  *filesharer
 |_  =bowl:gall
@@ -87,18 +85,46 @@
     ==
     ;br;
   ==
+::  CSS shameless copied from %pals
+::  https://github.com/Fang-/suite/blob/master/app/pals/webui/index.hoon
+++  style
+    '''
+    * { margin: 0.2em; padding: 0.2em; font-family: monospace; }
+    p { max-width: 50em; }
+    form { margin: 0; padding: 0; }
+    .red { font-weight: bold; color: #dd2222; }
+    .green { font-weight: bold; color: #229922; }
+    a {
+      display: inline-block;
+      color: inherit;
+      padding: 0;
+      margin-top: 0;
+    }
+    table#fs tr td:nth-child(2) {
+      padding: 0 0.5em;
+    }
+    '''
 ++  localui
     ^-  manx
     ;html
       ;head
         ;title:"local files"
-        ;style:"form \{ display: inline-block; }"
         ;meta(charset "utf-8");
         ;meta(name "viewport", content "width=device-width, initial-scale=1");
+        ::  ;style:"form \{ display: inline-block; }"
+        ;style:"{(trip style)}"
       ==
       ;body
         ::
-        ;h1: Local files
+        ;table#fs
+          ;tr(style "font-weight: bold")
+          ;td: Local files
+          ;td
+            ;a/"./remote": Remote files
+          ==
+          ;td
+            ;a/"./options": Program options
+          ==  ==  ==
         ;br;
         ;form(method "post")
           ;label(for "filename"): New file:
@@ -128,10 +154,6 @@
         ;ul
           ;*  (turn peek-subs sub-print)
         ==
-        ;br;
-        ;a/"./remote": Remote files
-        ;br;
-        ;a/"./options": Edit program options
       ==
     ==
 ++  peek-remote
@@ -170,13 +192,22 @@
     ;html
       ;head
         ;title:"remote files"
-        ;style:"form \{ display: inline-block; }"
         ;meta(charset "utf-8");
         ;meta(name "viewport", content "width=device-width, initial-scale=1");
+        ::  ;style:"form \{ display: inline-block; }"
+        ;style:"{(trip style)}"
       ==
       ;body
         ::
-        ;h1: Remote files
+        ;table#fs
+          ;tr(style "font-weight: bold")
+          ;td
+            ;a/"./local": Local files
+          ==
+          ;td: Remote files
+          ;td
+            ;a/"./options": Program options
+          ==  ==  ==
         ;form(method "post")
 ::          ;label(for "hostname"):Change host:
 ::          ;label: New sub:
@@ -188,24 +219,30 @@
           ;*  (turn ~(tap by peek-remote) remote-print)
         ==
         ;br;
-        ;br;
-        ;a/"./local": Local files
-        ;br;
-        ;a/"./options": Edit program options
       ==
     ==
 ++  optionsui
     ^-  manx
     ;html
       ;head
-        ;title:"remote files"
-        ;style:"form \{ display: inline-block; }"
+        ;title:"Program options"
         ;meta(charset "utf-8");
         ;meta(name "viewport", content "width=device-width, initial-scale=1");
+        ::  ;style:"form \{ display: inline-block; }"
+        ;style:"{(trip style)}"
       ==
       ;body
         ::
-        ;h1: Program settings
+        ;table#fs
+          ;tr(style "font-weight: bold")
+          ;td
+            ;a/"./local": Local files
+          ==
+          ;td
+            ;a/"./remote": Remote files
+          ==
+          ;td: Program options
+          ==  ==
         ;h3: Host server
         :: is there a better way to display scry results?
         :: (trip .^(@t ...)) just displays scry text itself
@@ -235,10 +272,6 @@
          ;br;
          ;input(type "submit", name "what", value "editlinks");
         ==
-        ;br;
-        ;a/"./local": Local files
-        ;br;
-        ;a/"./remote": Remote files
       ==
     ==
 --
