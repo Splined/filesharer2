@@ -41,9 +41,7 @@
       [%toggle-pub id=@]
       [%toggle-encrypted type=?(%links %http)]
       [%set-secret k=@ iv=@]
-      [%encode-test =ship =id]
-      [%decode-test url=@t]
-      [%subscribe host=@p]   
+      [%subscribe host=@p]
       [%leave host=@p]
 ::      [%change-perms        ::  [add|remove] perms for file
   ==

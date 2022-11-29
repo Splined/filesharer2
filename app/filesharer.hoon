@@ -1,8 +1,11 @@
 ::  Todo:
-::  -improve update after %POST   ::2
-::  -should urls be stored as relative to host? If host is changed,
-::  would all urls need to change anyway?
+::  -decode and render encoded links correctly
+::  -getting a 'take: failed' error when deleting files
+::  -page update after %POST times out in some cases  ::2
 ::  Done:
+::  -added scry for whether files are encrypted. ended up not using it
+::  -changed path from /apps/filesharer to /filesharer
+::  -clear links are handled correctly (I think)
 ::
 ::    scrys
 ::  x  /local          (map id [file perms])     local files
@@ -11,6 +14,7 @@
 ::  x  /remote/[ship]  (list file)               files of a ship
 ::  x  /remotes        (map ship (map id file))  all remote files
 ::  x  /host           @t                        host server url
+::  x  /encrypted      ?                         encrypted links?
 ::
 /-  *filesharer
 /+  default-agent, dbug, server
@@ -42,8 +46,8 @@
 ++  on-init
   ^-  (quip card _this)
   ~&  "filesharer compiled successfully!"
-  %-  (slog leaf+"Attempting to bind /apps/filesharer." ~)
-  =+  [[~ [%apps %filesharer ~]] dap.bowl]
+  %-  (slog leaf+"Attempting to bind /filesharer." ~)
+  =+  [[~ [%filesharer ~]] dap.bowl]
   :_  this
 ::      [%pass /bind-local %arvo %e %connect `/'filesharer' %filesharer]~
   [%pass /eyre/connect %arvo %e %connect -]~
@@ -173,6 +177,15 @@
     ::
     [%x %host ~]
     ``noun+!>(?~(host *@t u.host))
+    ::  return whether files are encrypted
+    ::  .^(? %gx /=filesharer=/encrypted/noun)
+    ::
+    ::  .^(? %gx /=filesharer=/encrypted/(scot %p ~sul)/noun)
+    ::  [%x %encrypted @ta ~]
+    ::  =/  uship=(unit @p)  (slaw %p i.t.t.path)
+    ::
+    [%x %encrypted ~]
+    ``noun+!>(links.encrypted.state)
   ==
 ::
 ++  on-agent  ::  |=([wire sign:agent:gall] !!)
@@ -234,9 +247,9 @@
     [%eyre %connect ~]
   ?>  ?=([%eyre %bound *] sign-arvo)
   ?:  accepted.sign-arvo
-    %-  (slog leaf+"/apps/filesharer bound successfully!" ~)
+    %-  (slog leaf+"/filesharer bound successfully!" ~)
     `this
-  %-  (slog leaf+"Binding /apps/filesharer failed!" ~)
+  %-  (slog leaf+"Binding /filesharer failed!" ~)
   `this
   ==
 ++  on-fail   on-fail:def
@@ -499,14 +512,6 @@
     =.  secret  [k.action iv.action]
     `state
         :: 
-        %encode-test
-    ~&  >  (encode [ship.action id.action])
-    `state
-        :: 
-        %decode-test
-    ~&  >  (decode url.action)
-    `state
-        :: 
         %subscribe
 ::    ~&  >  `path`[host.action ~]
     :_  state
@@ -536,10 +541,20 @@
         %'GET'
       =/  data=octs
       ?+  url.request.inbound-request
-          (as-octs:mimes:html '<h1>Hello, World!</h1>')
-        %'/apps/filesharer/local'  (press.webpage ~(localui webpage bowl))
-        %'/apps/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
-        %'/apps/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
+      =/  deco=(unit decoded)  (decode url.request.inbound-request)
+      (as-octs:mimes:html (crip <deco>))
+        :: 1   (as-octs:mimes:html '<h1>Hello, World!</h1>')
+          ::  (as-octs:mimes:html (crip <face>))
+        %'/filesharer/local'  (press.webpage ~(localui webpage bowl))
+        %'/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
+        %'/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
+        :: 1  %'/filesharer/share/'
+      :: 1 =/  deco=(unit decoded)  (decode url.request.inbound-request)
+      :: 1 (as-octs:mimes:html (crip <deco>))
+::      ?~  deco  (four-oh-five eyre-id)
+::      =/  id=@   id.u.deco
+::      =/  =file  -:(~(got by local) id)
+::        (three-oh-three eyre-id url:file)
       ==
       =/  =response-header:http
         :-  200
@@ -640,14 +655,14 @@
         ::2  what is the correct way to update after %POST?
         %+  weld
           ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
-        (three-oh-three eyre-id)
+        (three-oh-three eyre-id './local')
         ::
           %'delete'
         =/  =cage  [%filesharer-action !>([%remove-file-from-local (slav %ud u.fileid)])]
         :_  state
         %+  weld
           ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
-        (three-oh-three eyre-id)
+        (three-oh-three eyre-id './local')
         ::
           %'add_ship'
         =/  =ship  (slav %p (~(got by query) 'who'))
@@ -665,20 +680,20 @@
         :_  state
         %+  weld
           ~[[%pass /self %agent [our.bowl dap.bowl] %poke cage]]
-        (three-oh-three eyre-id)
+        (three-oh-three eyre-id './local')
       ==
   ==
 ::
 ::  No idea if this is correct
 ++  three-oh-three
-  |=  eyre-id=@ta
+  |=  [eyre-id=@ta loc=@t]
   ^-  (list card)
   =/  data=octs
     (as-octs:mimes:html '<a href="./local">Success!</a>')
   =/  =response-header:http
     :-  303
     :~    ['Content-Type' 'text/html']
-          ['location' './local']
+          ['location' loc]
     ==
   :~
     [%give %fact [/http-response/[eyre-id]]~ %http-response-header !>(response-header)]
@@ -721,7 +736,8 @@
   =/  query=tape
     ?~  ext.file  ""
     "?ext={(trip u.ext.file)}"
-  `(crip "http://{(trip u.host)}/share/{hash}{query}")
+  ::  `(crip "http://{(trip u.host)}/share/{hash}{query}")
+  `(crip "http://{(trip u.host)}/filesharer/{hash}{query}")
 ::
 ++  decode
   |=  url=@t

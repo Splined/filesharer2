@@ -1,4 +1,5 @@
 ::  Todo:
+::  -dropdown menus for 'options' don't show correct state
 ::  Done:
 ::
 /-  *filesharer
@@ -41,15 +42,15 @@
   =/  note  ?~(note.p.b *@t u.note.p.b)
   =/  ext  ?~(ext.p.b *@t u.ext.p.b)
   ;li
-    ; {(trip title.p.b)}
     ;form(method "post")
+      ;label(for "fileid"): {(trip title.p.b)}
       ;input(type "submit", name "what", value "delete");
       ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
     ==
     ;ul
       ;li: {(trip note)}
       ;li
-        ;a(href <(trip url.p.b)>): {(trip url.p.b)}
+        ;a(href (trip url.p.b)): {(trip url.p.b)}
       ==
 ::      ;li: {(trip url.p.b)}
       ;li: {(trip ext)}
@@ -75,8 +76,8 @@
           %+  turn  ~(tap in white.q.b)
           |=  w=ship
           ;li
-              ; {(scow %p w)}
               ;form(method "post")
+                ;label(for "what"): {(scow %p w)}
                 ;input(type "submit", name "what", value "remove");
                 ;input(type "hidden", name "fileid", value "{(scow %ud a)}");
                 ;input(type "hidden", name "who", value "{(scow %p w)}");
@@ -85,21 +86,11 @@
     ==
     ;br;
   ==
-::  CSS shameless copied from %pals
+::  CSS shameless copy from %pals
 ::  https://github.com/Fang-/suite/blob/master/app/pals/webui/index.hoon
 ++  style
     '''
     * { margin: 0.2em; padding: 0.2em; font-family: monospace; }
-    p { max-width: 50em; }
-    form { margin: 0; padding: 0; }
-    .red { font-weight: bold; color: #dd2222; }
-    .green { font-weight: bold; color: #229922; }
-    a {
-      display: inline-block;
-      color: inherit;
-      padding: 0;
-      margin-top: 0;
-    }
     table#fs tr td:nth-child(2) {
       padding: 0 0.5em;
     }
@@ -165,8 +156,8 @@
 ++  remote-print
   |=  [a=ship b=(map id file)]
   ;li
-    ; {(scow %p a)}
     ;form(method "post")
+      ;label(for "what"): {(scow %p a)}
       ;input(type "submit", name "what", value "leave");
       ;input(type "hidden", name "who", value "{(scow %p a)}");
     ==
@@ -180,7 +171,10 @@
             ;ul
               ;li: {(trip note)}
               ;li
-                ;a(href <(trip url.q)>): {(trip url.q)}
+::  need a scry for remote ship encrypted? and then render links accordingly
+::                ;+  ?:  links:encrypted
+::                      ;a(href <(trip url.q)>): {(trip url.q)}
+                    ;a(href (trip url.q)): {(trip url.q)}
               ==
               ;li: {(trip ext)}
             ==
