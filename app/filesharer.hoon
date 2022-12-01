@@ -1,11 +1,8 @@
 ::  Todo:
-::  -decode and render encoded links correctly
 ::  -getting a 'take: failed' error when deleting files
 ::  -page update after %POST times out in some cases  ::2
 ::  Done:
-::  -added scry for whether files are encrypted. ended up not using it
-::  -changed path from /apps/filesharer to /filesharer
-::  -clear links are handled correctly (I think)
+::  -basic decode and render of encoded links
 ::
 ::    scrys
 ::  x  /local          (map id [file perms])     local files
@@ -541,20 +538,10 @@
         %'GET'
       =/  data=octs
       ?+  url.request.inbound-request
-      =/  deco=(unit decoded)  (decode url.request.inbound-request)
-      (as-octs:mimes:html (crip <deco>))
-        :: 1   (as-octs:mimes:html '<h1>Hello, World!</h1>')
-          ::  (as-octs:mimes:html (crip <face>))
+        (post-decode (decode (pre-decode url.request.inbound-request)))
         %'/filesharer/local'  (press.webpage ~(localui webpage bowl))
         %'/filesharer/remote'  (press.webpage ~(remoteui webpage bowl))
         %'/filesharer/options'  (press.webpage ~(optionsui webpage bowl))
-        :: 1  %'/filesharer/share/'
-      :: 1 =/  deco=(unit decoded)  (decode url.request.inbound-request)
-      :: 1 (as-octs:mimes:html (crip <deco>))
-::      ?~  deco  (four-oh-five eyre-id)
-::      =/  id=@   id.u.deco
-::      =/  =file  -:(~(got by local) id)
-::        (three-oh-three eyre-id url:file)
       ==
       =/  =response-header:http
         :-  200
@@ -752,6 +739,35 @@
       (cut 3 [16 16] raw)
     (cut 3 [8 8] raw)
   (end 6 raw)
+::  take tail of url add correct http state and server, then decode
+++  pre-decode
+  |=  pork=@t
+  ^-  @t
+  =/  http=tape  ?:  http.encrypted.state  "https://"  "http://"
+  (crip (weld http (weld (trip (need host.state)) (trip pork))))
+::  take decoded url, check permission and return clear link or 404
+++  post-decode
+  |=  deco=(unit decoded)
+  ::  ^-  octstream
+  ?~  deco  (as-octs:mimes:html '<h1>Not Found</h1>')
+  =/  =id  id.u.deco
+  =/  =ship  ship.u.deco
+  =/  [=file =perms]  (~(got by local) id)
+  ?.  ?|  (~(has in public.state) id)
+          (~(has in white.perms) ship)
+      ==
+    (as-octs:mimes:html '<h1>Forbidden</h1>')
+  %-  as-octs:mimes:html
+  %-  crip
+  %+  weld
+    "<a href="
+  %+  weld
+    (trip url.file)
+  %+  weld
+    ">"
+  %+  weld
+    (trip url.file)
+  "</a>"
 ::  create subset of local from given ids
 ::
 ++  local-map-subset
